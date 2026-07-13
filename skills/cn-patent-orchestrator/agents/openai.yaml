@@ -1,0 +1,4 @@
+interface:
+  display_name: "中国专利案件编排"
+  short_description: "编排中国专利案件的阶段、审批门禁、结构化产物与失效状态"
+  default_prompt: "使用 $cn-patent-orchestrator 处理当前案件并生成本阶段规定的结构化产物。"
