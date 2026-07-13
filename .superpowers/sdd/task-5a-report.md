@@ -113,3 +113,9 @@ python -m pytest -v
 python C:\Users\xiany\.codex\skills\.system\skill-creator\scripts\quick_validate.py skills\cn-patent-orchestrator
 Skill is valid!
 ```
+
+## Final EOF Cleanup Revalidation
+
+- Removed the extra blank line at EOF from `tests/skill_scenarios/cn-patent-orchestrator-baseline.md`.
+- `git diff --check e0569c6..HEAD` completed with exit code 0 and no whitespace warnings after the cleanup commit.
+- `python -m pytest tests/test_plugin_contract.py::test_cn_patent_orchestrator_has_required_contract -v` completed with `1 passed`.
