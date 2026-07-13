@@ -2,6 +2,7 @@ import json
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -10,6 +11,17 @@ from codex_patent.cli import app
 
 ROOT = Path(__file__).parents[1]
 RUNNER = CliRunner()
+
+
+ARTIFACT_PATTERN = (
+    r"(?<![\w.-])"
+    r"([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+)"
+    r"(?![\w.-])"
+)
+
+
+def _artifact_tokens(section: str) -> set[str]:
+    return set(re.findall(ARTIFACT_PATTERN, section))
 
 
 ORCHESTRATOR_ROUTES = {
@@ -247,11 +259,7 @@ def test_patent_invention_mining_has_exact_contract():
         line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")
     ]
     assert len(input_lines) == 2
-    artifact_pattern = (
-        r"(?<![\w.-])([A-Za-z0-9][A-Za-z0-9-]*(?:-vN)?\.(?:json|md|docx))"
-        r"(?![\w.-])"
-    )
-    assert set(re.findall(artifact_pattern, inputs)) == {"intake-vN.json"}
+    assert _artifact_tokens(inputs) == {"intake-vN.json"}
     assert "source anchors" in input_lines[1]
 
     workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
@@ -297,7 +305,7 @@ def test_patent_invention_mining_has_exact_contract():
         "feature-tree-vN.json",
         "interview-vN.md",
     ]
-    assert set(re.findall(artifact_pattern, outputs)) == {
+    assert _artifact_tokens(outputs) == {
         "technical-facts-vN.json",
         "feature-tree-vN.json",
         "interview-vN.md",
@@ -315,3 +323,41 @@ def test_patent_invention_mining_has_exact_contract():
     assert interface["display_name"] == "发明挖掘"
     assert interface["short_description"]
     assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact", "placement"),
+    (
+        ("Inputs", "case_v1.json", "prefix"),
+        ("Inputs", "evidence-v1.pdf", "suffix"),
+        ("Outputs", "appendix_v1.json", "prefix"),
+        ("Outputs", "appendix-v1.txt", "suffix"),
+    ),
+)
+def test_invention_mining_artifact_token_detection_rejects_mutations(
+    section_name: str,
+    unexpected_artifact: str,
+    placement: str,
+):
+    body = (
+        ROOT / "skills" / "patent-invention-mining" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    if section_name == "Inputs":
+        section = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+        allowed = {"intake-vN.json"}
+    else:
+        section = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+        allowed = {
+            "technical-facts-vN.json",
+            "feature-tree-vN.json",
+            "interview-vN.md",
+        }
+
+    mutation = f"An additional artifact is `{unexpected_artifact}`."
+    mutated_section = (
+        f"{mutation}\n{section}" if placement == "prefix" else f"{section}\n{mutation}"
+    )
+
+    tokens = _artifact_tokens(mutated_section)
+    assert unexpected_artifact in tokens
+    assert tokens != allowed

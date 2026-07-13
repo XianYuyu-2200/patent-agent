@@ -45,9 +45,9 @@ Implemented only the `patent-invention-mining` Skill, its focused contract test,
 ## Validation and tests
 
 - Official validator: `$env:PYTHONUTF8='1'; python C:\Users\xiany\.codex\skills\.system\skill-creator\scripts\quick_validate.py skills\patent-invention-mining` → `Skill is valid!`.
-- Focused node: `python -m pytest tests/test_plugin_contract.py::test_patent_invention_mining_has_exact_contract -v` → `1 passed`.
-- Plugin contract file: `python -m pytest tests/test_plugin_contract.py -v` → `5 passed`.
-- Full suite: `python -m pytest -v` → `18 passed`.
+- Focused artifact and contract checks: `python -m pytest tests/test_plugin_contract.py::test_invention_mining_artifact_token_detection_rejects_mutations tests/test_plugin_contract.py::test_patent_invention_mining_has_exact_contract -v` → `5 passed`.
+- Plugin contract file: `python -m pytest tests/test_plugin_contract.py -v` → `9 passed`.
+- Full suite: `python -m pytest -v` → `22 passed`.
 
 ## Attention points
 
@@ -61,3 +61,12 @@ Implemented only the `patent-invention-mining` Skill, its focused contract test,
 - Hardened the contract test to require exactly two input bullets, only `intake-vN.json` as a file input, exactly three output bullets, and no additional file-like artifact token anywhere in the Inputs or Outputs sections.
 - Added the complete supplementary fresh behavior scenario for `inferred` and invalid `candidate` statuses.
 - Removed the inaccurate claim that the metadata description was trigger-only.
+
+## Artifact-token mutation RED/GREEN
+
+- A controller review found that the first file-token pattern recognized only selected extensions and omitted underscores, so extra artifacts could evade the exact-set comparison.
+- Added parameterized mutations for `case_v1.json`, `evidence-v1.pdf`, `appendix_v1.json`, and `appendix-v1.txt`, placed before or after the real Inputs/Outputs content.
+- Mutation RED command: `python -m pytest tests/test_plugin_contract.py::test_invention_mining_artifact_token_detection_rejects_mutations -v` → `4 failed`; the old collector returned the unchanged allowed set for every mutation.
+- Minimal GREEN change: collect file-like tokens across the entire section when the basename contains letters, digits, underscores, or hyphens and the name has one or more alphanumeric extension segments.
+- Combined focused GREEN command: `python -m pytest tests/test_plugin_contract.py::test_invention_mining_artifact_token_detection_rejects_mutations tests/test_plugin_contract.py::test_patent_invention_mining_has_exact_contract -v` → `5 passed`.
+- No Skill instruction or runtime behavior changed in this review fix.
