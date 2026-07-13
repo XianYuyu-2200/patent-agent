@@ -361,3 +361,149 @@ def test_invention_mining_artifact_token_detection_rejects_mutations(
     tokens = _artifact_tokens(mutated_section)
     assert unexpected_artifact in tokens
     assert tokens != allowed
+
+
+def test_patent_prior_art_search_has_exact_contract():
+    skill_dir = ROOT / "skills" / "patent-prior-art-search"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    assert metadata["name"] == "patent-prior-art-search"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "prior-art search",
+        "novelty search",
+        "classification search",
+        "comparison evidence",
+        "feature tree",
+    ):
+        assert trigger in metadata["description"]
+
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Outputs",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    input_lines = [
+        line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")
+    ]
+    assert input_lines == ["- `feature-tree-vN.json`"]
+    assert _artifact_tokens(inputs) == {"feature-tree-vN.json"}
+
+    workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
+    workflow_steps = [
+        line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()
+    ]
+    assert workflow_steps[0].startswith(
+        "1. Validate fact statuses and feature statuses"
+    )
+    assert all(
+        status in workflow_steps[0]
+        for status in (
+            "`confirmed`",
+            "`source-backed`",
+            "`inferred`",
+            "`missing`",
+            "`conflicted`",
+        )
+    )
+    assert "reject unknown values" in workflow_steps[0]
+
+    required_contracts = (
+        "core features and feature combinations",
+        "keywords, synonyms, IPC/CPC classifications, applicants, inventors, and combined queries",
+        "Treat `core` and `core-combination` as roles, not statuses",
+        "Only `confirmed` and `source-backed` features may enter formal searches",
+        "Record every database, complete query, search date, and screening process",
+        "Bind every complete query to a named database and that database's syntax",
+        "Every planned or executed keyword query must name its target database and include complete syntax even when access is unavailable",
+        "blocked-missing-verified-classification",
+        "blocked-missing-identity",
+        "`query` = `null`",
+        "publication number, publication date, priority date",
+        "claim, paragraph, page, or figure anchor",
+        "verbatim quotation",
+        "Do not fabricate a publication number, document, date, result, quotation, or anchor",
+        "Do not treat a result without a source anchor as formal evidence",
+        "Do not give a final novelty or inventive-step conclusion",
+        "Do not invoke claim strategy, claim drafting, or specification drafting",
+        "Stop after saving the three declared prior-art-search artifacts",
+    )
+    assert all(contract in body for contract in required_contracts)
+
+    outputs = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+    output_lines = [
+        line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")
+    ]
+    assert output_lines == [
+        "- `search-plan-vN.md`",
+        "- `prior-art-vN.json`",
+        "- `search-log-vN.json`",
+    ]
+    assert _artifact_tokens(outputs) == {
+        "search-plan-vN.md",
+        "prior-art-vN.json",
+        "search-log-vN.json",
+    }
+    for forbidden_output in (
+        "feature-matrix-vN.json",
+        "patentability-vN.md",
+        "protection-strategy-vN.md",
+        "claims-vN.md",
+        "specification-vN.md",
+    ):
+        assert forbidden_output not in body
+
+    assert metadata_path.exists()
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "现有技术检索"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact", "placement"),
+    (
+        ("Inputs", "case_v3.json", "prefix"),
+        ("Inputs", "search-brief-v3.md", "suffix"),
+        ("Outputs", "citations_v3.json", "prefix"),
+        ("Outputs", "novelty-opinion-v3.md", "suffix"),
+    ),
+)
+def test_prior_art_search_artifact_token_detection_rejects_mutations(
+    section_name: str,
+    unexpected_artifact: str,
+    placement: str,
+):
+    body = (
+        ROOT / "skills" / "patent-prior-art-search" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    if section_name == "Inputs":
+        section = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+        allowed = {"feature-tree-vN.json"}
+    else:
+        section = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+        allowed = {
+            "search-plan-vN.md",
+            "prior-art-vN.json",
+            "search-log-vN.json",
+        }
+
+    mutation = f"An additional artifact is `{unexpected_artifact}`."
+    mutated_section = (
+        f"{mutation}\n{section}" if placement == "prefix" else f"{section}\n{mutation}"
+    )
+
+    tokens = _artifact_tokens(mutated_section)
+    assert unexpected_artifact in tokens
+    assert tokens != allowed
