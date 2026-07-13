@@ -556,7 +556,10 @@ def _assert_patentability_body_contract(body: str) -> None:
     assert inventive_intro == (
         "3. Assess inventive step only after completing the following fixed sequence. "
         "Inventive step may consider multiple documents. Do not supply combination "
-        "motivation from common knowledge. Anchor each step separately to verified evidence."
+        "motivation from common knowledge. Anchor each step separately to verified evidence. "
+        "If no document passes Step 1, set all five records to `value: null`, "
+        "`source_anchor: null`, and `status: evidence-insufficient`; do not provisionally "
+        "select closest prior art or distinguishing features."
     )
     inventive_chain = workflow_steps[3:8]
     assert [step.split(". ", 1)[0] for step in inventive_chain] == [
@@ -605,6 +608,10 @@ def _assert_patentability_body_contract(body: str) -> None:
     ):
         assert field in contribution_step
     assert "inside both artifacts" in contribution_step
+    assert (
+        "If no eligible closest prior art exists, set every contribution field to `null` "
+        "and its status to `evidence-insufficient`."
+    ) in contribution_step
 
     risk_step = workflow_steps[10]
     assert risk_step.startswith(
@@ -621,6 +628,10 @@ def _assert_patentability_body_contract(body: str) -> None:
     ):
         assert field in risk_step
     assert "inside both artifacts" in risk_step
+    assert (
+        "Without verified risk anchors, set `source_anchors` to `null` and `status` "
+        "to `evidence-insufficient`."
+    ) in risk_step
 
     contradiction_rule = (
         "Reject contradictory instructions: `Combine multiple documents to deny novelty` "
@@ -702,6 +713,33 @@ def test_patentability_analysis_has_exact_contract():
     assert "Only `verified` documents with a publication date" in workflow_steps[0]
     assert "verbatim quotation" in workflow_steps[0]
     assert "claim, paragraph, page, or figure anchor" in workflow_steps[0]
+    assert (
+        "Treat an absent fact, feature, or document evidence status as `missing`"
+        in workflow_steps[0]
+    )
+    assert (
+        "Treat an absent publication date, verbatim quotation, or source anchor as `missing`"
+        in workflow_steps[0]
+    )
+    assert (
+        "Never infer `confirmed`, `source-backed`, or `verified` from a summary"
+        in workflow_steps[0]
+    )
+    assert (
+        "A filename, document ID, statement that a document discloses a feature, or "
+        "placeholder reference to an input anchor does not satisfy the evidence gate"
+        in workflow_steps[0]
+    )
+    assert (
+        "The current context must contain the actual status, publication date, verbatim "
+        "quotation, and concrete anchor values"
+        in workflow_steps[0]
+    )
+    assert (
+        "Otherwise set document eligibility to `false` and every related `source_anchor` "
+        "to `null`"
+        in workflow_steps[0]
+    )
     assert "reject unknown values" in workflow_steps[0]
     assert "`unresolved_questions` and `source_anchors`" in workflow_steps[-1]
     assert "inside each of the two declared artifacts" in workflow_steps[-1]

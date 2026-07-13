@@ -14,6 +14,7 @@ Implemented only the `patentability-analysis` Skill, its exact and mutation-resi
 - The mirrored-record contract was added before Skill revision; the focused test failed because both outputs were not yet required to carry all five `source_anchor`/`status` records.
 - Control review then identified four further gaps. RED tests showed numeric extensions such as `archive.7z` and `evidence.2026` were invisible, the Skill lacked protectable-contribution and filing-risk triggers, and the earlier Markdown forward was not self-contained.
 - A Chinese-basename RED case (`证据.2026`) exposed a second collector defect after numeric extensions were restored.
+- Final evidence-gate review found that the control forward fabricated D1 verification and anchors. A RED contract test locked missing-by-default statuses and then a second RED locked value-based evidence after a fresh agent still used “沿用输入锚点” placeholders.
 
 ## Exact artifact and evidence contract
 
@@ -22,6 +23,8 @@ Implemented only the `patentability-analysis` Skill, its exact and mutation-resi
 - The artifact collector scans the complete Skill body and permits only those four file-like tokens. It supports numeric extensions (`.7z`, `.2026`) and Chinese basenames while rejecting numeric workflow labels such as `3.1.` because a basename must contain a letter, underscore, hyphen, or Chinese character.
 - Prefix/suffix mutations cover Inputs and Outputs; elsewhere mutations cover Workflow, Stop Conditions, and Quality Checks, including numeric-extension files.
 - The first workflow step separately validates fact, feature, and document-evidence statuses. Only `confirmed`/`source-backed` facts and features and `verified` documents with publication date, verbatim quotation, and claim/paragraph/page/figure anchor may enter formal analysis.
+- Missing statuses, dates, quotations, and anchors are `missing`. A filename, document ID, summary statement that a document discloses a feature, or placeholder reference to an input anchor never satisfies the gate; the current context must contain the actual values.
+- When actual evidence values are absent, document eligibility is false and related anchors are null. If no document is eligible, all five inventive-step values/anchors, protectable-contribution fields, and risk anchors remain null with `evidence-insufficient`; no closest prior art or distinguishing feature may be provisional.
 - Search incompleteness, a missing publication date or source anchor, or a conflicted core fact forces stop or `evidence-insufficient` and forbids an affirmative legal conclusion.
 - Both outputs must contain `unresolved_questions` and `source_anchors`; no third evidence-gap artifact is allowed.
 
@@ -54,13 +57,16 @@ Implemented only the `patentability-analysis` Skill, its exact and mutation-resi
 - Initial fresh forward produced exactly two standard artifacts, kept novelty single-document only, rejected both management shortcuts, and used `evidence-insufficient` for incomplete evidence.
 - After review strengthened the numbered chain, a fresh supplementary forward exposed one remaining gap: the distinguishing-feature item lacked its own anchor or insufficient status.
 - The next corrected forward supplied the five JSON records, but control review correctly reclassified it as PARTIAL because Markdown compressed them into one sentence and referred to JSON for unresolved questions/source anchors.
-- A final fresh control forward listed 3.1–3.5 separately in Markdown with `value`, `source_anchor`, and `status`; directly listed Markdown unresolved questions/source anchors; and included protectable contribution and filing/application risk in both artifacts.
+- A fresh control forward fixed the Markdown and responsibility fields but was later reclassified FAIL because it invented D1 verification, formal eligibility, and source anchors from the summary.
+- The first missing-evidence forward also failed by using placeholder phrases such as “沿用 prior-art-v1.json 中 D1 的公开日、F1原文及段落/页码锚点”.
+- The final fresh value-gate forward treated D1 and D2 as ineligible, kept F1/F2 missing, left 3.1–3.5 and contribution null/insufficient, recorded risk anchors as null/insufficient, and still produced only the two self-contained artifacts.
 
 ## Independent review closure
 
 - Initial review found no Critical issues and two Important test weaknesses: extra artifacts outside Inputs/Outputs and unordered/negatable legal substrings.
 - Control review found four remaining issues: missing contribution/risk duties, non-self-contained Markdown evidence, appended semantic contradictions, and numeric-extension collector blind spots.
-- All findings were fixed with full-body token collection, numeric/Chinese filename cases, appended-opposite-rule mutations, exact novelty sentences, parsed numbered inventive-step order, per-step anchoring assertions, self-contained Markdown requirements, and structured contribution/risk fields.
+- Final review found one additional issue: inferred D1 verification from an unverified summary.
+- All findings were fixed with full-body token collection, numeric/Chinese filename cases, appended-opposite-rule mutations, exact novelty sentences, parsed numbered inventive-step order, per-step anchoring assertions, self-contained Markdown requirements, structured contribution/risk fields, missing-by-default status rules, and a value-based evidence gate that rejects file references and placeholder anchors.
 - No additional research or unrelated work was performed after closure.
 
 ## Validation results
@@ -74,4 +80,4 @@ Implemented only the `patentability-analysis` Skill, its exact and mutation-resi
 
 ## Submission
 
-The initial Task 5E implementation was submitted as `feat: add patentability analysis skill`. Control-review corrections are submitted in a second Codex-identity commit with subject `fix: complete patentability analysis contract`.
+The initial Task 5E implementation was submitted as `feat: add patentability analysis skill`, followed by `fix: complete patentability analysis contract`. The final value-based evidence-gate correction is submitted in a third Codex-identity commit with subject `fix: require explicit patent evidence values`.
