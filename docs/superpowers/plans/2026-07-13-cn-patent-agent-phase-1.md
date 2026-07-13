@@ -96,8 +96,10 @@ def test_plugin_manifest_and_skill_roots_exist():
     manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "codex-patent"
     assert manifest["version"] == "0.1.0"
-    assert manifest["skills"] == ["./skills"]
-    assert manifest["agents"] == ["./agents"]
+    assert manifest["skills"] == "./skills/"
+    assert manifest["author"]["name"] == "XianYuyu-2200"
+    assert manifest["interface"]["displayName"] == "中国专利撰写 Agent"
+    assert manifest["interface"]["category"] == "Productivity"
 ```
 
 - [ ] **Step 2: Run the test and verify the scaffold is absent**
@@ -106,7 +108,15 @@ Run: `python -m pytest tests/test_plugin_contract.py -v`
 
 Expected: FAIL with `FileNotFoundError` for `.codex-plugin/plugin.json`.
 
-- [ ] **Step 3: Create the minimal project metadata**
+- [ ] **Step 3: Generate the plugin scaffold, then create the project metadata**
+
+Run the official plugin scaffold into a temporary parent directory so the existing repository remains the plugin root:
+
+```text
+python C:/Users/xiany/.codex/skills/.system/plugin-creator/scripts/create_basic_plugin.py codex-patent --path .plugin-scaffold --with-skills
+```
+
+Copy the generated `.codex-plugin/plugin.json` structure into the repository root, then remove `.plugin-scaffold`. Preserve the scaffold's supported schema and use these exact values:
 
 Create `.codex-plugin/plugin.json`:
 
@@ -115,8 +125,25 @@ Create `.codex-plugin/plugin.json`:
   "name": "codex-patent",
   "version": "0.1.0",
   "description": "Chinese patent production workflow for invention patents and utility models.",
-  "skills": ["./skills"],
-  "agents": ["./agents"]
+  "author": {
+    "name": "XianYuyu-2200",
+    "url": "https://github.com/XianYuyu-2200"
+  },
+  "repository": "https://github.com/XianYuyu-2200/patent-agent",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "中国专利撰写 Agent",
+    "shortDescription": "面向中国发明专利和实用新型的专业撰写工作流",
+    "longDescription": "整理客户材料，完成发明挖掘、检索、保护策略、权利要求、说明书、质量审查和文档导出。",
+    "developerName": "XianYuyu-2200",
+    "category": "Productivity",
+    "capabilities": ["Write", "Analysis"],
+    "defaultPrompt": [
+      "整理当前客户材料并建立专利案件。",
+      "分析当前案件的发明点并生成追问清单。",
+      "根据已确认方案起草中国专利申请文件。"
+    ]
+  }
 }
 ```
 
@@ -192,6 +219,10 @@ Expected: installation completes without dependency resolution errors.
 Run: `python -m pytest tests/test_plugin_contract.py -v`
 
 Expected: PASS.
+
+Run: `python C:/Users/xiany/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .`
+
+Expected: validator exits 0.
 
 Run: `codex-patent version`
 
