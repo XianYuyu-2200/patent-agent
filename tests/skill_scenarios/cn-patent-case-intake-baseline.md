@@ -43,3 +43,62 @@
 “去年展会上展示过”按潜在公开风险处理。我会立即追问展会名称、地点、具体日期、展示内容、是否可由公众接触、是否有保密限制，以及展会目录、现场照片、网页、公众号文章等证据。“去年”必须结合原始录音日期解释，不能直接换算成某一天。未查清前不会承诺新颖性，也不会默认能够适用任何不丧失新颖性的例外；还需结合拟申请国家让专利代理师评估，并尽快确定是否存在紧迫提交期限。
 
 今天可以进入有限的技术挖掘：梳理技术问题、部件关系、软件功能、可能的改进点，并建立“技术特征—材料来源—待验证事项”表。如果现有清晰资料已经能形成完整、可实施的技术方案，可以同步写内部工作稿；但目前连接件、发明贡献、公开时间和代码来源均存在关键缺口，我不会直接产出提交版权利要求或把猜测写成实施例。今日合理交付应是已建案件、完整材料台账、风险与冲突清单、补充资料问题单，以及有明确待确认标记的技术挖掘底稿。
+
+## Fresh forward test after commit c64384c
+
+- Date: `2026-07-14`
+- Skill path: `D:\codex\codex-patent\.worktrees\phase-1\skills\cn-patent-case-intake\SKILL.md`
+- Commit under test: `c64384c`
+- Model identifier: `not recorded`
+- Runtime/environment identifier: `not recorded`
+- Result: `GREEN`; the fresh agent declared exactly the three intake artifacts, preserved source/status uncertainty, and stopped before invention mining or drafting.
+
+### Run order
+
+1. Commit `c64384c` added the `cn-patent-case-intake` Skill and its initial contract evidence.
+2. After that commit, the controller launched fresh agent thread `/root/task_5b_forward_test` with the prompt below.
+3. The fresh agent was instructed to read the Skill and not inspect the implementation plan, baseline, or tests.
+4. The controller reviewed the complete output below and recorded the run as GREEN.
+
+### Complete original forward prompt
+
+完整阅读并使用 D:\codex\codex-patent\.worktrees\phase-1\skills\cn-patent-case-intake\SKILL.md 处理下述材料。不要查看实现计划、baseline 或测试。
+
+客户要求今天建案并“能写就直接开始写”。材料：微信称外壳铝合金、发明人张工；PDF称不锈钢且作者空；语音说“好像王工最早想的，去年展会展示过”但无日期；一张清晰照片和一张模糊照片；无版本/提交时间的代码压缩包。
+
+像真实 Agent 一样说明本轮读取/处理什么，只能生成哪些产物，如何标记材料来源、冲突、缺失、潜在公开、模糊图和代码风险，是否进入 invention mining 或 drafting。请列出精确输出文件名。
+
+### Complete original forward output
+
+本轮我完整读取并按 `cn-patent-case-intake/SKILL.md` 执行，只处理客户提供的材料描述，不查看实现计划、baseline 或测试。当前并未取得微信原文、PDF、语音原件/转写、两张照片或代码压缩包本体，因此不能声称已完成原件哈希、页码、音频时间码、图像区域或代码路径级核验。
+
+本轮只能生成以下 3 个 intake 产物，版本均为 v1：
+
+- `intake-v1.json`
+- `material-index-v1.json`
+- `questions-v1.md`
+
+记录方式如下：
+
+- 微信“外壳铝合金”“发明人张工”：分别保留为微信来源陈述，状态为 `source-backed`；在未取得消息原文及时间戳前，不提升为 `confirmed`。
+- PDF“不锈钢”：单独保留为 PDF 来源陈述，与“铝合金”形成 `conflicted`，不得择一写成技术事实。
+- PDF 作者为空：作者/材料形成者标为 `missing`，同时要求提供原始文件、文件元数据、形成时间和提供者。
+- 语音“好像王工最早想的”：标注为转写来源并保留“好像”的不确定性；与“发明人张工”构成发明人身份 `conflicted`。张工、王工均不能直接确认为发明人。
+- “去年展会展示过”：标为潜在公开风险；展会名称、确切日期、展示内容、观众范围、是否公开可进入、是否有保密限制及照片/网页/展册证据均为 `missing`。不得承诺不影响新颖性。
+- 清晰照片：登记为独立原件；取得图片后才可使用图像区域作为来源锚点，照片所示内容仍不能自动证明材料、日期、发明人或公开情况。
+- 模糊照片：登记并明确标记 `ambiguous/blurred`，不得据此推断结构、部件或技术效果。若后续增强，增强图必须作为 derived copy 单列并回指原图。
+- 代码压缩包：只允许静态登记，不执行、不构建、不导入依赖。因缺少版本、提交时间及来源，代码 provenance 标为 `missing`；需追问仓库、分支、commit、作者、形成日期、提交历史、依赖和许可证。
+- 每条材料各设一个稳定 provisional material ID；真实原件到手后补充原始文件名、提供者、渠道、接收时间、作者/说话人、材料日期、哈希以及页码、消息时间戳、语音时间范围、图像区域或 archive path/code line 等锚点。不同来源的冲突陈述保持分离。
+
+`questions-v1.md` 中应优先追问：
+
+1. 今天的具体提交/建案截止时间，以及客户所称“开始写”的预期范围。
+2. 申请人主体及准确名称。
+3. 张工、王工各自对发明构思作出的具体创造性贡献和时间证据。
+4. 外壳究竟是铝合金、不锈钢，还是不同版本/部件；分别对应哪一版产品。
+5. 展会名称、地点、准确日期、展示对象、展示范围、保密措施及留存证据。
+6. PDF 作者、形成时间和版本。
+7. 模糊照片的清晰原图及拍摄信息。
+8. 代码包的来源、版本历史、作者、日期、仓库/commit、依赖和许可证。
+
+当前状态是 intake 阻断：来源冲突、发明人和申请人身份未定、潜在公开日期不明、模糊图不可解释、代码来源不明，且原件尚不能被保存和完整索引。因此本轮不进入 invention mining，也不进入权利要求书或说明书 drafting；“能写就直接开始写”不改变 intake 边界，也不会产生第 4 个文件。

@@ -161,6 +161,19 @@ def test_cn_patent_case_intake_has_exact_intake_contract():
     ):
         assert heading in body
 
+    workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
+    workflow_steps = [
+        line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()
+    ]
+    assert workflow_steps[0].startswith("1. Validate any existing fact statuses")
+    assert (
+        "If a new case has no recorded facts, explicitly record the fact set as empty"
+        in workflow_steps[0]
+    )
+    assert workflow.index("Validate any existing fact statuses") < workflow.index(
+        "Treat every original as read-only"
+    )
+
     required_contracts = (
         "Treat every original as read-only",
         "Record a source anchor for every extracted fact",

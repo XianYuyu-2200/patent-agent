@@ -17,13 +17,14 @@ Create a traceable intake record without turning uncertain customer material int
 
 ## Workflow
 
-1. Treat every original as read-only. Preserve the received file, message, archive, or recording; record a stable material identifier, hash when available, original name, provider, channel, receipt time, author or speaker, material date, and whether the item is original or derived.
-2. Record a source anchor for every extracted fact. Use a page, message timestamp, audio time range, image region, archive path, or code file and line range. Label a transcription as a transcription and retain its confidence or uncertainty.
-3. Assess each intake fact as `confirmed`, `source-backed`, `inferred`, `missing`, or `conflicted`. Never merge conflicting statements or select a convenient version. Preserve each statement with its own anchor and convert the conflict into a question.
-4. Mark uncertain inventor identity, applicant identity, and public-disclosure dates as `missing` or `conflicted`. Record disclosure venue, date, audience access, confidentiality limits, and supporting evidence when known; otherwise flag public-disclosure risk without promising novelty.
-5. Do not infer details from a blurred or ambiguous image. Keep enhanced or annotated copies separate from the original and label them as derived. Do not execute unknown code; index it statically and ask for provenance, repository, branch, commit history, authorship, dates, dependencies, and licences.
-6. Check whether every received item is indexed, every extracted fact has an anchor, all conflicts and missing identity or disclosure data are visible, and urgent filing or confidentiality risks are prioritized.
-7. Save only the three declared intake artifacts with unresolved questions and source anchors. Do not invoke invention mining or drafting. Stop after saving the three intake artifacts.
+1. Validate any existing fact statuses before handling materials. If a new case has no recorded facts, explicitly record the fact set as empty; only then preserve or extract customer materials.
+2. Treat every original as read-only. Preserve the received file, message, archive, or recording; record a stable material identifier, hash when available, original name, provider, channel, receipt time, author or speaker, material date, and whether the item is original or derived.
+3. Record a source anchor for every extracted fact. Use a page, message timestamp, audio time range, image region, archive path, or code file and line range. Label a transcription as a transcription and retain its confidence or uncertainty.
+4. Assess each intake fact as `confirmed`, `source-backed`, `inferred`, `missing`, or `conflicted`. Never merge conflicting statements or select a convenient version. Preserve each statement with its own anchor and convert the conflict into a question.
+5. Mark uncertain inventor identity, applicant identity, and public-disclosure dates as `missing` or `conflicted`. Record disclosure venue, date, audience access, confidentiality limits, and supporting evidence when known; otherwise flag public-disclosure risk without promising novelty.
+6. Do not infer details from a blurred or ambiguous image. Keep enhanced or annotated copies separate from the original and label them as derived. Do not execute unknown code; index it statically and ask for provenance, repository, branch, commit history, authorship, dates, dependencies, and licences.
+7. Check whether every received item is indexed, every extracted fact has an anchor, all conflicts and missing identity or disclosure data are visible, and urgent filing or confidentiality risks are prioritized.
+8. Save only the three declared intake artifacts with unresolved questions and source anchors. Do not invoke invention mining or drafting. Stop after saving the three intake artifacts.
 
 ## Outputs
 
