@@ -495,14 +495,35 @@ git commit -m "feat: add versioned case workspace"
 ```python
 import pytest
 
-from codex_patent.models import ArtifactRef, CaseStage, PatentCase
+from codex_patent.models import ArtifactRef, CaseStage, PatentCase, ReviewIssue
 from codex_patent.workflow import WorkflowError, advance_case, invalidate_after_claim_change
 
 
-def test_claims_require_technical_solution_approval():
-    case = PatentCase(case_id="C1", title="支架", stage=CaseStage.STRATEGY)
+def test_search_requires_technical_solution_approval():
+    case = PatentCase(case_id="C1", title="支架", stage=CaseStage.MINING)
     with pytest.raises(WorkflowError, match="technical-solution"):
-        advance_case(case, CaseStage.CLAIMS)
+        advance_case(case, CaseStage.SEARCH)
+
+
+def test_drafting_requires_claim_set_approval():
+    case = PatentCase(case_id="C1", title="支架", stage=CaseStage.CLAIMS)
+    with pytest.raises(WorkflowError, match="claim-set"):
+        advance_case(case, CaseStage.DRAFTING)
+
+
+def test_delivery_blocks_open_high_issues_without_requiring_final_approval():
+    case = PatentCase(
+        case_id="C1",
+        title="支架",
+        stage=CaseStage.REVIEW,
+        issues=[ReviewIssue(issue_id="R-1", severity="high", message="缺少支持")],
+    )
+    with pytest.raises(WorkflowError, match="open high-severity"):
+        advance_case(case, CaseStage.DELIVERY)
+
+    case.issues[0].closed = True
+    advance_case(case, CaseStage.DELIVERY)
+    assert case.stage == CaseStage.DELIVERY
 
 
 def test_claim_change_invalidates_drafting_and_review():
@@ -536,9 +557,8 @@ class WorkflowError(ValueError):
 
 
 REQUIRED_APPROVAL = {
-    CaseStage.CLAIMS: "technical-solution",
+    CaseStage.SEARCH: "technical-solution",
     CaseStage.DRAFTING: "claim-set",
-    CaseStage.DELIVERY: "final-delivery",
 }
 
 
@@ -563,7 +583,7 @@ def invalidate_after_claim_change(case: PatentCase) -> PatentCase:
 
 Run: `python -m pytest tests/test_workflow.py -v`
 
-Expected: 2 passed.
+Expected: 4 passed.
 
 - [ ] **Step 5: Commit**
 
