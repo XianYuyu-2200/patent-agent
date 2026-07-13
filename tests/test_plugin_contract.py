@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import yaml
@@ -204,5 +205,113 @@ def test_cn_patent_case_intake_has_exact_intake_contract():
     assert metadata_path.exists()
     interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
     assert interface["display_name"] == "专利案件受理"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
+
+
+def test_patent_invention_mining_has_exact_contract():
+    skill_dir = ROOT / "skills" / "patent-invention-mining"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    assert metadata["name"] == "patent-invention-mining"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "invention mining",
+        "intake",
+        "technical facts",
+        "technical problems",
+        "technical means",
+        "technical effects",
+        "implementation variants",
+        "inventor interview",
+    ):
+        assert trigger in metadata["description"]
+
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Outputs",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    input_lines = [
+        line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")
+    ]
+    assert len(input_lines) == 2
+    artifact_pattern = (
+        r"(?<![\w.-])([A-Za-z0-9][A-Za-z0-9-]*(?:-vN)?\.(?:json|md|docx))"
+        r"(?![\w.-])"
+    )
+    assert set(re.findall(artifact_pattern, inputs)) == {"intake-vN.json"}
+    assert "source anchors" in input_lines[1]
+
+    workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
+    workflow_steps = [
+        line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()
+    ]
+    assert workflow_steps[0].startswith("1. Validate fact statuses")
+    assert all(
+        status in workflow_steps[0]
+        for status in (
+            "`confirmed`",
+            "`source-backed`",
+            "`inferred`",
+            "`missing`",
+            "`conflicted`",
+        )
+    )
+    assert "reject unknown values" in workflow_steps[0]
+
+    required_contracts = (
+        "Do not invent technical facts",
+        "Do not merge conflicting technical effects",
+        "Never promote `inferred`, `missing`, or `conflicted` content into a final technical fact",
+        "Keep each technical fact linked to its source anchors",
+        "Convert missing connections, parameters, and algorithm steps into interview questions",
+        "Do not fill gaps with common practice",
+        "Do not invoke prior-art search, claim strategy, claim drafting, or specification drafting",
+        "Stop after saving the three declared invention-mining artifacts",
+    )
+    assert all(contract in body for contract in required_contracts)
+
+    outputs = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+    output_lines = [
+        line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")
+    ]
+    assert output_lines == [
+        "- `technical-facts-vN.json`",
+        "- `feature-tree-vN.json`",
+        "- `interview-vN.md`",
+    ]
+    assert [line[3:-1] for line in output_lines] == [
+        "technical-facts-vN.json",
+        "feature-tree-vN.json",
+        "interview-vN.md",
+    ]
+    assert set(re.findall(artifact_pattern, outputs)) == {
+        "technical-facts-vN.json",
+        "feature-tree-vN.json",
+        "interview-vN.md",
+    }
+    for forbidden_output in (
+        "search-plan-vN.md",
+        "prior-art-vN.json",
+        "claims-vN.md",
+        "specification-vN.md",
+    ):
+        assert forbidden_output not in body
+
+    assert metadata_path.exists()
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "发明挖掘"
     assert interface["short_description"]
     assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
