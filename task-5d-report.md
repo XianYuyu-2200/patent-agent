@@ -29,28 +29,31 @@ Implemented only the `patent-prior-art-search` Skill, its exact contract and mut
 
 - Initialized the unique Skill with the official `init_skill.py`. The first metadata attempt correctly rejected a 20-character short description; the Skill directory was retained and `agents/openai.yaml` was then generated with the official generator using a valid description.
 - Created no scripts, references, assets, README files, or other Skill directories.
-- Kept `SKILL.md` to 498 word-like tokens and 42 lines.
-- Required the workflow to begin by validating `confirmed`, `source-backed`, `inferred`, `missing`, and `conflicted` for both facts and features, rejecting unknown values; only the first two may enter formal searches.
+- Kept `SKILL.md` to 497 word-like tokens and 41 lines.
+- Required the workflow to validate fact statuses separately from feature statuses before search planning. Only `confirmed` and `source-backed` facts and features may enter formal search; `inferred`, `missing`, `conflicted`, and unknown values block and stop.
 - Defined `core` and `core-combination` as roles rather than statuses.
-- Required single-feature and core-combination coverage using Chinese and useful foreign-language terms, synonyms, IPC/CPC classifications, applicants, inventors, and combined queries.
-- Required every planned or executed keyword query to bind a named database and complete database syntax even when access is unavailable, plus dates, counts, filters, reviews, exclusions, and failures.
+- Required one independent branch for every `core` feature and one branch for every `core-combination`; a combination never replaces FT-001-only or FT-002-only coverage.
+- Required keywords, synonyms, IPC/CPC, applicant/inventor, and combination planning for each branch.
+- Kept generic concept expressions in the search plan only. An executable record must contain database, collection, fields, verified dialect, and query.
+- When a database dialect is not verified, required `verified_dialect=false`, `query=null`, `blocked-missing-verified-dialect`, the intended database/collection/fields, the generic concept expression, and a reason. The generic expression must not be described as executable syntax.
 - Required missing verified classifications and applicant/inventor identities to be explicit null-query branches with `blocked-missing-verified-classification` or `blocked-missing-identity`, never guessed values.
 - Required key documents to include verified publication number, publication/priority dates, retrieval source/date, feature matches, a claim/paragraph/page/figure anchor, and verbatim quotation.
 - Required inaccessible or unanchored hits to remain leads, never formal evidence.
-- When no database access exists, required an executable plan, empty verified results, full failure log, and stop condition rather than plausible patents.
+- When database access or dialect verification is absent, required empty verified results, blocked query records, full failure logs, and stop conditions rather than plausible patents or invented syntax.
 - Limited output to exactly three artifacts and stopped before final novelty/inventive-step conclusions, patentability analysis, claim strategy, claim drafting, or specification drafting.
+- Required `unresolved_questions` and `source_anchors` inside all three existing artifacts, with no fourth file.
 - Generated `agents/openai.yaml` with display name `现有技术检索` and the project-wide default prompt `请处理当前案件并生成本阶段规定的结构化产物。`.
 
-## Forward iterations and final GREEN
+## Forward iterations and control-review GREEN
 
 - The first fresh forward `/root/task_5d_implementer/prior_art_forward` was retained as `PARTIAL RED`: it respected the evidence and artifact boundaries but lacked applicant/inventor branches and a proper blocked classification record.
 - Independent review then found the undefined feature-status vocabulary, the metadata prompt mismatch, and missing database binding for planned queries. Each issue first received a failing contract assertion before the Skill was changed.
-- A later fresh attempt correctly added blocked null classification/identity branches but left ordinary planned query database/syntax fields null; the contract was tightened again and observed failing before the final fix.
-- Final fresh thread `/root/task_5d_implementer/prior_art_forward_final` read only the finished Skill and the same pressure scenario. Its complete prompt and verbatim output are preserved in the evidence file.
-- Final result: GREEN. It emitted exactly `search-plan-v1.md`, `prior-art-v1.json`, and `search-log-v1.json`.
-- It validated source-backed feature statuses separately from core roles, bound every planned keyword query to CNIPA with complete syntax, and logged access as unavailable.
-- It recorded IPC/CPC as `query=null` plus `blocked-missing-verified-classification`, and applicant/inventor as `query=null` plus `blocked-missing-identity`, without guessing codes or names.
-- It kept verified documents and leads empty, refused invented publications, and stopped without novelty, inventive-step, claim-strategy, or drafting conclusions.
+- The intermediate `/root/task_5d_implementer/prior_art_forward_retry` prompt/output was not preserved verbatim before review and is explicitly marked `not recorded`; no claim is made that it is saved. Its observed failure was leaving ordinary database/syntax fields null.
+- `/root/task_5d_implementer/prior_art_forward_final` is preserved completely, but control review reclassified it as partial because it described a generic Boolean expression as CNIPA syntax.
+- Control-review forward `/root/task_5d_implementer/prior_art_invalid_status_forward` used the original baseline scenario unchanged. It rejected `core`/`core-combination` as illegal feature statuses before search and still returned exactly the three standard artifacts, each with unresolved questions and source anchors.
+- Corrected supplementary forward `/root/task_5d_implementer/prior_art_branch_forward` produced distinct FT-001-only, FT-002-only, and FT-C01 combination branches.
+- The supplementary forward kept generic Boolean expressions in the plan, set CNIPA, Google Patents, and Espacenet query records to `query=null`, `verified_dialect=false`, and `blocked-missing-verified-dialect`, and did not call them executable.
+- Both control-review forwards kept verified documents empty, refused invented publications, and stopped without novelty, inventive-step, claim-strategy, or drafting conclusions.
 - Model and runtime/environment identifiers were not recorded and are labelled `not recorded` rather than inferred.
 
 ## Review closure
@@ -58,7 +61,9 @@ Implemented only the `patent-prior-art-search` Skill, its exact contract and mut
 - Fixed all three Important review findings before submission.
 - Locked the unified generic default prompt from the implementation plan.
 - Made status/role semantics executable and testable.
-- Made database binding mandatory for ordinary planned queries while reserving null queries only for evidence-blocked classification and identity branches.
+- The earlier review fix bound ordinary planned expressions to named databases while reserving null queries for classification and identity evidence gaps.
+- Control review then corrected this rule: database identity alone is insufficient. Only dialect-verified records may be executable; otherwise the database branch is blocked with a null query and the generic expression remains in the search plan.
+- Added exact tests and fresh forwards for independent core branches, illegal status rejection, honest dialect blocking, and unresolved/source-anchor fields in all three artifacts.
 
 ## Validation and tests
 

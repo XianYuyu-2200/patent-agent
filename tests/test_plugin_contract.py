@@ -405,7 +405,7 @@ def test_patent_prior_art_search_has_exact_contract():
         line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()
     ]
     assert workflow_steps[0].startswith(
-        "1. Validate fact statuses and feature statuses"
+        "1. Validate fact statuses separately from feature statuses"
     )
     assert all(
         status in workflow_steps[0]
@@ -417,16 +417,26 @@ def test_patent_prior_art_search_has_exact_contract():
             "`conflicted`",
         )
     )
+    assert "Only `confirmed` and `source-backed` facts may enter formal searches" in workflow_steps[0]
+    assert "Only `confirmed` and `source-backed` features may enter formal searches" in workflow_steps[0]
+    assert "Block and stop on `inferred`, `missing`, `conflicted`, or unknown fact statuses" in workflow_steps[0]
+    assert "Block and stop on `inferred`, `missing`, `conflicted`, or unknown feature statuses" in workflow_steps[0]
+    assert "Treat `core` and `core-combination` as roles, not statuses" in workflow_steps[0]
     assert "reject unknown values" in workflow_steps[0]
+    assert "`unresolved_questions` and `source_anchors`" in workflow_steps[-1]
+    assert "inside each of the three declared artifacts" in workflow_steps[-1]
 
     required_contracts = (
         "core features and feature combinations",
+        "Create one independent search branch for each `core` feature",
+        "one combination branch for each `core-combination` role",
+        "A combination branch never replaces the independent core-feature branches",
         "keywords, synonyms, IPC/CPC classifications, applicants, inventors, and combined queries",
-        "Treat `core` and `core-combination` as roles, not statuses",
-        "Only `confirmed` and `source-backed` features may enter formal searches",
         "Record every database, complete query, search date, and screening process",
-        "Bind every complete query to a named database and that database's syntax",
-        "Every planned or executed keyword query must name its target database and include complete syntax even when access is unavailable",
+        "Every executable query record requires `database`, `collection`, `fields`, `verified_dialect`, and `query`",
+        "Do not label a generic concept expression as executable database syntax",
+        "blocked-missing-verified-dialect",
+        "Keep generic concept expressions in the search plan only",
         "blocked-missing-verified-classification",
         "blocked-missing-identity",
         "`query` = `null`",

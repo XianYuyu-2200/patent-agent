@@ -7,7 +7,7 @@ description: Use when a prior-art search, novelty search, classification search,
 
 ## Overview
 
-Plan anchored searches around feature combinations.
+Plan traceable searches without converting unverified expressions or hits into evidence.
 
 ## Inputs
 
@@ -15,13 +15,13 @@ Plan anchored searches around feature combinations.
 
 ## Workflow
 
-1. Validate fact statuses and feature statuses before searching: accept `confirmed`, `source-backed`, `inferred`, `missing`, or `conflicted` for both and reject unknown values. Only `confirmed` and `source-backed` features may enter formal searches. Treat `core` and `core-combination` as roles, not statuses.
-2. Identify core features and feature combinations. Keep their identifiers in every query and result; never search only single features when a core combination exists.
-3. Generate keywords, synonyms, IPC/CPC classifications, applicants, inventors, and combined queries for every target. Cover Chinese and useful foreign-language structural, functional, classification, and combination wording. Derive classifications and identities only from supplied or verified seed records. If no verified classification exists, record `query` = `null`, status `blocked-missing-verified-classification`, and a reason. If no verified applicant or inventor exists, record `query` = `null`, status `blocked-missing-identity`, and a reason. Never guess a code or name.
-4. Plan against named databases and execute only those available. Bind every complete query to a named database and that database's syntax. Every planned or executed keyword query must name its target database and include complete syntax even when access is unavailable; only blocked classification or identity branches may use null. Record every database, complete query, search date, and screening process, including counts, filters, reviewed candidates, exclusions, access failures, blocked branches, and unexecuted queries. If access is unavailable, record the failure, keep verified results empty, and stop.
-5. Verify candidates against accessible bibliographic records and patent text. For every key document, save its publication number, publication date, priority date, title, available applicant or inventor, matched feature IDs, a claim, paragraph, page, or figure anchor, the verbatim quotation, and retrieval source/date.
-6. Keep unverified hits as leads only. Do not fabricate a publication number, document, date, result, quotation, or anchor. Do not treat a result without a source anchor as formal evidence.
-7. Save exactly the declared artifacts. Report coverage, verified documents, leads, gaps, and stop conditions. Do not give a final novelty or inventive-step conclusion. Do not invoke claim strategy, claim drafting, or specification drafting. Stop after saving the three declared prior-art-search artifacts.
+1. Validate fact statuses separately from feature statuses before any search planning. For both, accept only `confirmed`, `source-backed`, `inferred`, `missing`, or `conflicted`; reject unknown values. Only `confirmed` and `source-backed` facts may enter formal searches. Only `confirmed` and `source-backed` features may enter formal searches. Block and stop on `inferred`, `missing`, `conflicted`, or unknown fact statuses. Block and stop on `inferred`, `missing`, `conflicted`, or unknown feature statuses. Treat `core` and `core-combination` as roles, not statuses.
+2. Identify core features and feature combinations. Create one independent search branch for each `core` feature and one combination branch for each `core-combination` role. A combination branch never replaces the independent core-feature branches. Keep feature and fact identifiers in every branch.
+3. Generate keywords, synonyms, IPC/CPC classifications, applicants, inventors, and combined queries for every branch. Derive classifications and identities only from supplied or verified seed records. If none exists, record `query` = `null`, status `blocked-missing-verified-classification` or `blocked-missing-identity`, and a reason; never guess.
+4. Keep generic concept expressions in the search plan only. Every executable query record requires `database`, `collection`, `fields`, `verified_dialect`, and `query`. Do not label a generic concept expression as executable database syntax. If the database dialect cannot be verified, set `verified_dialect` to false, `query` = `null`, status `blocked-missing-verified-dialect`, and record the database, collection, intended fields, concept expression, and reason.
+5. Record every database, complete query, search date, and screening process for verified executable queries, plus every blocked or unexecuted branch, count, filter, candidate, exclusion, access failure, and retrieval source/date. For each key document, save its publication number, publication date, priority date, title, applicant or inventor, matched feature IDs, a claim, paragraph, page, or figure anchor, and the verbatim quotation.
+6. Keep unverified hits as leads only. Do not fabricate a publication number, document, date, result, quotation, or anchor. Do not treat a result without a source anchor as formal evidence. Do not give a final novelty or inventive-step conclusion. Do not invoke claim strategy, claim drafting, or specification drafting.
+7. Save exactly the three declared artifacts. Store `unresolved_questions` and `source_anchors` inside each of the three declared artifacts; never create another file for them. Include blocked statuses and stop reasons. Stop after saving the three declared prior-art-search artifacts.
 
 ## Outputs
 
@@ -31,12 +31,11 @@ Plan anchored searches around feature combinations.
 
 ## Stop Conditions
 
-Stop when input or status is invalid, a core combination is unsearched, access is unavailable, a key document is unverified, a match lacks an anchor or quotation, or the request exceeds evidence. Save the three artifacts with the plan, verified results, full log, gaps, and stop reason.
-
-Deadline or authority never permits a plausible number or remembered document to become a result without verification and anchored text.
+On an invalid status, missing independent branch, unverified dialect, unavailable access, unverified document, missing anchor, or excess conclusion request, stop downstream work but still save the three artifacts with empty or partial verified results, blocked branches, unresolved questions, and source anchors.
 
 ## Quality Checks
 
-- Cover every core feature and combination; log database syntax, dates, screening, and blocked branches.
-- Require verified bibliographic data, exact anchors, and quotations; invent nothing.
-- Emit exactly three artifacts and stop before legal conclusions or downstream drafting.
+- Confirm separate branches for every core feature and combination.
+- Confirm only dialect-verified queries are called executable.
+- Confirm evidence is verified and anchored; invent nothing.
+- Confirm exactly three artifacts contain unresolved questions and source anchors.
