@@ -15,7 +15,7 @@ RUNNER = CliRunner()
 
 ARTIFACT_PATTERN = (
     r"(?<![\w.-])"
-    r"([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+)"
+    r"([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+)"
     r"(?![\w.-])"
 )
 
@@ -508,6 +508,282 @@ def test_prior_art_search_artifact_token_detection_rejects_mutations(
             "prior-art-vN.json",
             "search-log-vN.json",
         }
+
+    mutation = f"An additional artifact is `{unexpected_artifact}`."
+    mutated_section = (
+        f"{mutation}\n{section}" if placement == "prefix" else f"{section}\n{mutation}"
+    )
+
+    tokens = _artifact_tokens(mutated_section)
+    assert unexpected_artifact in tokens
+    assert tokens != allowed
+
+
+def _assert_patentability_body_contract(body: str) -> None:
+    assert _artifact_tokens(body) == {
+        "feature-tree-vN.json",
+        "prior-art-vN.json",
+        "feature-matrix-vN.json",
+        "patentability-vN.md",
+    }
+
+    workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
+    workflow_steps = [
+        line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()
+    ]
+    novelty_step = workflow_steps[1]
+    assert (
+        "A novelty rejection requires one prior-art document that directly and "
+        "unambiguously discloses every necessary feature."
+    ) in novelty_step
+    assert "Never combine multiple documents to deny novelty." in novelty_step
+
+    inventive_intro = workflow_steps[2]
+    assert inventive_intro == (
+        "3. Assess inventive step only after completing the following fixed sequence. "
+        "Inventive step may consider multiple documents. Do not supply combination "
+        "motivation from common knowledge. Anchor each step separately to verified evidence."
+    )
+    inventive_chain = workflow_steps[3:8]
+    assert [step.split(". ", 1)[0] for step in inventive_chain] == [
+        "3.1",
+        "3.2",
+        "3.3",
+        "3.4",
+        "3.5",
+    ]
+    required_steps = (
+        "Record the closest prior art.",
+        "Record the distinguishing features.",
+        "Record the actual technical problem.",
+        "Record the combination motivation or teaching.",
+        "Record the reasonable expectation of success.",
+    )
+    for step, required_text in zip(inventive_chain, required_steps, strict=True):
+        assert required_text in step
+        assert (
+            "Require a separate `source_anchor` or mark this step "
+            "`evidence-insufficient`."
+        ) in step
+
+    output_shape_step = workflow_steps[8]
+    assert output_shape_step.startswith(
+        "4. Write the same five numbered inventive-step records into both artifacts."
+    )
+    assert "Each record must contain `source_anchor` and `status`" in output_shape_step
+    assert "set `source_anchor` to `null`" in output_shape_step
+    assert "set `status` to `evidence-insufficient`" in output_shape_step
+
+
+def test_patentability_analysis_has_exact_contract():
+    skill_dir = ROOT / "skills" / "patentability-analysis"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    assert metadata["name"] == "patentability-analysis"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "patentability analysis",
+        "novelty",
+        "inventive step",
+        "feature tree",
+        "prior-art evidence",
+    ):
+        assert trigger in metadata["description"]
+
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Outputs",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    input_lines = [
+        line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")
+    ]
+    assert input_lines == [
+        "- `feature-tree-vN.json`",
+        "- `prior-art-vN.json`",
+    ]
+    assert _artifact_tokens(inputs) == {
+        "feature-tree-vN.json",
+        "prior-art-vN.json",
+    }
+
+    workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
+    workflow_steps = [
+        line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()
+    ]
+    assert workflow_steps[0].startswith(
+        "1. Validate fact statuses, feature statuses, and document evidence statuses separately"
+    )
+    assert all(
+        status in workflow_steps[0]
+        for status in (
+            "`confirmed`",
+            "`source-backed`",
+            "`inferred`",
+            "`missing`",
+            "`conflicted`",
+            "`verified`",
+        )
+    )
+    assert "Only `confirmed` and `source-backed` facts may enter formal analysis" in workflow_steps[0]
+    assert "Only `confirmed` and `source-backed` features may enter formal analysis" in workflow_steps[0]
+    assert "Only `verified` documents with a publication date" in workflow_steps[0]
+    assert "verbatim quotation" in workflow_steps[0]
+    assert "claim, paragraph, page, or figure anchor" in workflow_steps[0]
+    assert "reject unknown values" in workflow_steps[0]
+    assert "`unresolved_questions` and `source_anchors`" in workflow_steps[-1]
+    assert "inside each of the two declared artifacts" in workflow_steps[-1]
+
+    required_contracts = (
+        "A novelty rejection requires one prior-art document",
+        "directly and unambiguously discloses every necessary feature",
+        "Never combine multiple documents to deny novelty",
+        "Inventive step may consider multiple documents",
+        "closest prior art",
+        "distinguishing features",
+        "actual technical problem",
+        "combination motivation or teaching",
+        "reasonable expectation of success",
+        "Anchor each step separately to verified evidence",
+        "Do not supply combination motivation from common knowledge",
+        "search is incomplete",
+        "publication date or source anchor is missing",
+        "core fact is conflicted",
+        "`evidence-insufficient`",
+        "do not give an affirmative legal conclusion",
+        "Do not invoke claim strategy or claim drafting",
+        "Stop after saving the two declared patentability-analysis artifacts",
+    )
+    assert all(contract in body for contract in required_contracts)
+    _assert_patentability_body_contract(body)
+
+    outputs = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+    output_lines = [
+        line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")
+    ]
+    assert output_lines == [
+        "- `feature-matrix-vN.json`",
+        "- `patentability-vN.md`",
+    ]
+    assert _artifact_tokens(outputs) == {
+        "feature-matrix-vN.json",
+        "patentability-vN.md",
+    }
+    for forbidden_output in (
+        "evidence-gap-vN.json",
+        "novelty-opinion-vN.md",
+        "protection-strategy-vN.md",
+        "claims-vN.md",
+        "specification-vN.md",
+    ):
+        assert forbidden_output not in body
+
+    assert metadata_path.exists()
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "可专利性分析"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement"),
+    (
+        (
+            "## Quality Checks",
+            "## Quality Checks\n\n- Save `risk-register-vN.md` for management review.",
+        ),
+        (
+            "3.2. Record the distinguishing features.",
+            "3.3. Record the distinguishing features.",
+        ),
+        (
+            "Require a separate `source_anchor` or mark this step `evidence-insufficient`.",
+            "Anchor only the overall inventive-step result.",
+        ),
+        (
+            "3.4. Record the combination motivation or teaching.",
+            "3.4. Do not require combination motivation or teaching.",
+        ),
+    ),
+)
+def test_patentability_body_contract_rejects_scope_and_reasoning_mutations(
+    original: str,
+    replacement: str,
+):
+    body = (
+        ROOT / "skills" / "patentability-analysis" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    mutated_body = body.replace(original, replacement, 1)
+
+    assert mutated_body != body
+    with pytest.raises(AssertionError):
+        _assert_patentability_body_contract(mutated_body)
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact", "placement"),
+    (
+        ("Workflow", "risk-register-vN.md", "prefix"),
+        ("Stop Conditions", "analysis-notes-vN.json", "suffix"),
+        ("Quality Checks", "management-summary-vN.md", "suffix"),
+    ),
+)
+def test_patentability_global_artifact_scope_rejects_elsewhere_mutations(
+    section_name: str,
+    unexpected_artifact: str,
+    placement: str,
+):
+    body = (
+        ROOT / "skills" / "patentability-analysis" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    heading = f"## {section_name}"
+    mutation = f"An additional artifact is `{unexpected_artifact}`."
+    replacement = (
+        f"{heading}\n{mutation}"
+        if placement == "prefix"
+        else f"{heading}\n\n{mutation}"
+    )
+    mutated_body = body.replace(heading, replacement, 1)
+
+    assert mutated_body != body
+    with pytest.raises(AssertionError):
+        _assert_patentability_body_contract(mutated_body)
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact", "placement"),
+    (
+        ("Inputs", "case_v4.json", "prefix"),
+        ("Inputs", "search-log-v4.json", "suffix"),
+        ("Outputs", "evidence-gap_v4.json", "prefix"),
+        ("Outputs", "claim-strategy-v4.md", "suffix"),
+    ),
+)
+def test_patentability_artifact_token_detection_rejects_mutations(
+    section_name: str,
+    unexpected_artifact: str,
+    placement: str,
+):
+    body = (
+        ROOT / "skills" / "patentability-analysis" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    if section_name == "Inputs":
+        section = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+        allowed = {"feature-tree-vN.json", "prior-art-vN.json"}
+    else:
+        section = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+        allowed = {"feature-matrix-vN.json", "patentability-vN.md"}
 
     mutation = f"An additional artifact is `{unexpected_artifact}`."
     mutated_section = (

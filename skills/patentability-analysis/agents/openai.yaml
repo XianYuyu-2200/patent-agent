@@ -1,0 +1,4 @@
+interface:
+  display_name: "可专利性分析"
+  short_description: "基于特征树和已核验现有技术形成可追溯的新颖性与创造性分析"
+  default_prompt: "请处理当前案件并生成本阶段规定的结构化产物。"

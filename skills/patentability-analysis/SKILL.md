@@ -1,0 +1,46 @@
+---
+name: patentability-analysis
+description: Use when a patentability analysis, novelty assessment, or inventive step assessment must compare a feature tree with verified prior-art evidence before patent strategy or drafting.
+---
+
+# Patentability Analysis
+
+## Overview
+
+Separate novelty and inventive step; keep conclusions evidence-bound.
+
+## Inputs
+
+- `feature-tree-vN.json`
+- `prior-art-vN.json`
+
+## Workflow
+
+1. Validate fact statuses, feature statuses, and document evidence statuses separately before analysis. For facts and features, accept only `confirmed`, `source-backed`, `inferred`, `missing`, or `conflicted`; reject unknown values. Only `confirmed` and `source-backed` facts may enter formal analysis. Only `confirmed` and `source-backed` features may enter formal analysis. Only `verified` documents with a publication date, a verbatim quotation, and a claim, paragraph, page, or figure anchor may enter formal analysis.
+2. Build the feature matrix from necessary confirmed or source-backed features and verified document evidence. A novelty rejection requires one prior-art document that directly and unambiguously discloses every necessary feature. Never combine multiple documents to deny novelty.
+3. Assess inventive step only after completing the following fixed sequence. Inventive step may consider multiple documents. Do not supply combination motivation from common knowledge. Anchor each step separately to verified evidence.
+3.1. Record the closest prior art. Require a separate `source_anchor` or mark this step `evidence-insufficient`.
+3.2. Record the distinguishing features. Require a separate `source_anchor` or mark this step `evidence-insufficient`.
+3.3. Record the actual technical problem. Require a separate `source_anchor` or mark this step `evidence-insufficient`.
+3.4. Record the combination motivation or teaching. Require a separate `source_anchor` or mark this step `evidence-insufficient`.
+3.5. Record the reasonable expectation of success. Require a separate `source_anchor` or mark this step `evidence-insufficient`.
+4. Write the same five numbered inventive-step records into both artifacts. Each record must contain `source_anchor` and `status`; when no verified anchor exists, set `source_anchor` to `null` and set `status` to `evidence-insufficient`. Assign each novelty row a conclusion status and its supporting source anchors. Keep unsupported assertions out of the formal analysis.
+5. When the search is incomplete, a publication date or source anchor is missing, or a core fact is conflicted, stop or mark the affected conclusion `evidence-insufficient`; do not give an affirmative legal conclusion.
+6. Do not invoke claim strategy or claim drafting. Stop after saving the two declared patentability-analysis artifacts.
+7. Save exactly the two declared artifacts. Store `unresolved_questions` and `source_anchors` inside each of the two declared artifacts; never create a separate evidence-gap file.
+
+## Outputs
+
+- `feature-matrix-vN.json`
+- `patentability-vN.md`
+
+## Stop Conditions
+
+On an invalid status, unverified document, missing publication date or source anchor, incomplete search, conflicted core fact, requested novelty combination, or unsupported inventive-step link, stop downstream work but still save the two artifacts with `evidence-insufficient`, unresolved questions, and available source anchors.
+
+## Quality Checks
+
+- Confirm novelty uses one document only and covers every necessary feature directly and unambiguously.
+- Confirm every inventive-step link has separately anchored evidence, including motivation and reasonable success expectation.
+- Confirm no affirmative legal conclusion rests on incomplete, unverified, unanchored, or conflicted evidence.
+- Confirm exactly two artifacts contain unresolved questions and source anchors.
