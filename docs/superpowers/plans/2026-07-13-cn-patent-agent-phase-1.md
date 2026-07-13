@@ -593,6 +593,8 @@ git commit -m "feat: enforce patent workflow gates"
 
 ### Task 5: Create the Orchestrator Skill and Nine Production Skill Contracts
 
+**Execution rule:** Implement this task as ten sequential reviewed sub-tasks: Task 5A `cn-patent-orchestrator`, then Tasks 5B–5J in the production-skill order listed below. For each sub-task, run a fresh baseline scenario without the skill, record the failure, create only that one skill, run the same scenario with the skill, validate its folder, commit, and complete task-level review before creating the next skill. Do not batch-create multiple skills.
+
 **Files:**
 - Create: `skills/cn-patent-orchestrator/SKILL.md`
 - Create: `skills/*/SKILL.md` for all nine production skills
