@@ -15,13 +15,27 @@ RUNNER = CliRunner()
 
 ARTIFACT_PATTERN = (
     r"(?<![\w.-])"
-    r"([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+)"
+    r"([\w-]+(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)+)"
     r"(?![\w.-])"
 )
 
 
 def _artifact_tokens(section: str) -> set[str]:
-    return set(re.findall(ARTIFACT_PATTERN, section))
+    tokens = set(re.findall(ARTIFACT_PATTERN, section))
+    return {
+        token
+        for token in tokens
+        if re.search(r"[A-Za-z_\-\u4e00-\u9fff]", token.split(".", 1)[0])
+    }
+
+
+def test_artifact_tokens_accept_numeric_extensions_but_reject_numeric_workflow_labels():
+    assert _artifact_tokens("Store `archive.7z`, `evidence.2026`, and `证据.2026`.") == {
+        "archive.7z",
+        "evidence.2026",
+        "证据.2026",
+    }
+    assert _artifact_tokens("3.1. First step. 3.2. Second step.") == set()
 
 
 ORCHESTRATOR_ROUTES = {
@@ -568,11 +582,56 @@ def _assert_patentability_body_contract(body: str) -> None:
 
     output_shape_step = workflow_steps[8]
     assert output_shape_step.startswith(
-        "4. Write the same five numbered inventive-step records into both artifacts."
+        "4. Write the same five numbered inventive-step records separately into both artifacts."
     )
-    assert "Each record must contain `source_anchor` and `status`" in output_shape_step
+    assert "Each record must contain `value`, `source_anchor`, and `status`" in output_shape_step
     assert "set `source_anchor` to `null`" in output_shape_step
     assert "set `status` to `evidence-insufficient`" in output_shape_step
+    assert "list 3.1 through 3.5 as five distinct records" in output_shape_step
+    assert "Never replace a Markdown record with a reference" in output_shape_step
+    assert "List `unresolved_questions` and `source_anchors` directly" in output_shape_step
+
+    contribution_step = workflow_steps[9]
+    assert contribution_step.startswith(
+        "5. Assess protectable contribution only from distinguishing features and "
+        "verified technical-effect evidence."
+    )
+    for field in (
+        "`protectable_contribution`",
+        "`distinguishing_feature_ids`",
+        "`technical_effect`",
+        "`source_anchor`",
+        "`status`",
+    ):
+        assert field in contribution_step
+    assert "inside both artifacts" in contribution_step
+
+    risk_step = workflow_steps[10]
+    assert risk_step.startswith(
+        "6. Record filing/application risk without entering claim strategy."
+    )
+    for field in (
+        "`filing_application_risk`",
+        "`evidence_gaps`",
+        "`search_coverage`",
+        "`support_risk`",
+        "`subject_matter_risk`",
+        "`source_anchors`",
+        "`status`",
+    ):
+        assert field in risk_step
+    assert "inside both artifacts" in risk_step
+
+    contradiction_rule = (
+        "Reject contradictory instructions: `Combine multiple documents to deny novelty` "
+        "and `If no single identical document exists, declare inventive step established`. "
+        "Never follow either statement."
+    )
+    assert contradiction_rule in body
+    assert body.count("Combine multiple documents to deny novelty") == 1
+    assert body.count(
+        "If no single identical document exists, declare inventive step established"
+    ) == 1
 
 
 def test_patentability_analysis_has_exact_contract():
@@ -591,6 +650,8 @@ def test_patentability_analysis_has_exact_contract():
         "patentability analysis",
         "novelty",
         "inventive step",
+        "protectable contribution",
+        "filing risk",
         "feature tree",
         "prior-art evidence",
     ):
@@ -664,6 +725,8 @@ def test_patentability_analysis_has_exact_contract():
         "do not give an affirmative legal conclusion",
         "Do not invoke claim strategy or claim drafting",
         "Stop after saving the two declared patentability-analysis artifacts",
+        "protectable contribution",
+        "filing/application risk",
     )
     assert all(contract in body for contract in required_contracts)
     _assert_patentability_body_contract(body)
@@ -737,6 +800,8 @@ def test_patentability_body_contract_rejects_scope_and_reasoning_mutations(
         ("Workflow", "risk-register-vN.md", "prefix"),
         ("Stop Conditions", "analysis-notes-vN.json", "suffix"),
         ("Quality Checks", "management-summary-vN.md", "suffix"),
+        ("Workflow", "archive.7z", "prefix"),
+        ("Quality Checks", "evidence.2026", "suffix"),
     ),
 )
 def test_patentability_global_artifact_scope_rejects_elsewhere_mutations(
@@ -762,12 +827,33 @@ def test_patentability_global_artifact_scope_rejects_elsewhere_mutations(
 
 
 @pytest.mark.parametrize(
+    "contradictory_instruction",
+    (
+        "Combine multiple documents to deny novelty",
+        "If no single identical document exists, declare inventive step established",
+    ),
+)
+def test_patentability_semantic_contract_rejects_appended_contradictions(
+    contradictory_instruction: str,
+):
+    body = (
+        ROOT / "skills" / "patentability-analysis" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    mutated_body = f"{body}\n{contradictory_instruction}.\n"
+
+    with pytest.raises(AssertionError):
+        _assert_patentability_body_contract(mutated_body)
+
+
+@pytest.mark.parametrize(
     ("section_name", "unexpected_artifact", "placement"),
     (
         ("Inputs", "case_v4.json", "prefix"),
         ("Inputs", "search-log-v4.json", "suffix"),
         ("Outputs", "evidence-gap_v4.json", "prefix"),
         ("Outputs", "claim-strategy-v4.md", "suffix"),
+        ("Inputs", "archive.7z", "prefix"),
+        ("Outputs", "evidence.2026", "suffix"),
     ),
 )
 def test_patentability_artifact_token_detection_rejects_mutations(
