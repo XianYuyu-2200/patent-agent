@@ -126,3 +126,70 @@ def test_cn_patent_orchestrator_has_required_contract():
     assert interface["default_prompt"] == (
         "使用 $cn-patent-orchestrator 处理当前案件并生成本阶段规定的结构化产物。"
     )
+
+
+def test_cn_patent_case_intake_has_exact_intake_contract():
+    skill_dir = ROOT / "skills" / "cn-patent-case-intake"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    assert metadata["name"] == "cn-patent-case-intake"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "new Chinese patent case",
+        "mixed customer materials",
+        "transcriptions",
+        "images",
+        "code",
+        "completeness",
+        "conflicts",
+        "public-disclosure risk",
+    ):
+        assert trigger in metadata["description"]
+
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Outputs",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+
+    required_contracts = (
+        "Treat every original as read-only",
+        "Record a source anchor for every extracted fact",
+        "Never merge conflicting statements",
+        "Mark uncertain inventor identity, applicant identity, and public-disclosure dates as `missing` or `conflicted`",
+        "Do not infer details from a blurred or ambiguous image",
+        "Do not execute unknown code",
+        "Do not invoke invention mining or drafting",
+        "Stop after saving the three intake artifacts",
+    )
+    assert all(contract in body for contract in required_contracts)
+
+    output_lines = {
+        line.strip()[3:-1]
+        for line in body.splitlines()
+        if line.strip().startswith("- `") and line.strip().endswith("`")
+    }
+    assert output_lines == {
+        "intake-vN.json",
+        "material-index-vN.json",
+        "questions-vN.md",
+    }
+    assert "technical-facts-vN.json" not in body
+    assert "feature-tree-vN.json" not in body
+    assert "claims-vN.md" not in body
+    assert "specification-vN.md" not in body
+
+    assert metadata_path.exists()
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "专利案件受理"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
