@@ -1,6 +1,5 @@
 import hashlib
 import json
-import shutil
 from pathlib import Path
 
 from codex_patent.models import PatentCase
@@ -11,7 +10,19 @@ class CaseRepository:
         self.root = root
 
     def case_dir(self, case_id: str) -> Path:
-        return self.root / case_id
+        case_path = Path(case_id)
+        if not case_id or case_path.is_absolute() or len(case_path.parts) != 1:
+            raise ValueError("case_id must be a single path segment")
+
+        case_dir = self.root / case_id
+        resolved_root = self.root.resolve()
+        resolved_case_dir = case_dir.resolve()
+        if (
+            resolved_case_dir == resolved_root
+            or not resolved_case_dir.is_relative_to(resolved_root)
+        ):
+            raise ValueError("case_id must resolve inside the workspace")
+        return case_dir
 
     def create(self, case: PatentCase) -> Path:
         case_dir = self.case_dir(case.case_id)
@@ -37,12 +48,13 @@ class CaseRepository:
         return PatentCase.model_validate(data)
 
     def add_source(self, case_id: str, source: Path) -> Path:
-        digest = hashlib.sha256(source.read_bytes()).hexdigest()[:12]
+        content = source.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()[:12]
         destination = (
             self.case_dir(case_id)
             / "source-materials"
             / f"{digest}-{source.name}"
         )
-        shutil.copy2(source, destination)
+        destination.write_bytes(content)
         destination.chmod(0o444)
         return destination

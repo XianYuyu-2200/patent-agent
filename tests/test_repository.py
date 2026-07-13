@@ -1,7 +1,9 @@
 import hashlib
+import os
 import stat
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from codex_patent.cli import app
@@ -17,6 +19,31 @@ ARTIFACT_DIRECTORIES = {
     "drafts",
     "review-log",
 }
+
+
+def test_repository_rejects_parent_traversal_without_writing_outside_workspace(
+    tmp_path: Path,
+):
+    workspace = tmp_path / "workspace"
+    repo = CaseRepository(workspace)
+
+    with pytest.raises(ValueError, match="case_id"):
+        repo.create(PatentCase(case_id="../escaped", title="Traversal"))
+
+    assert not (tmp_path / "escaped").exists()
+
+
+def test_repository_rejects_absolute_case_id_without_writing_outside_workspace(
+    tmp_path: Path,
+):
+    workspace = tmp_path / "workspace"
+    absolute_case_dir = tmp_path / "absolute-case"
+    repo = CaseRepository(workspace)
+
+    with pytest.raises(ValueError, match="case_id"):
+        repo.create(PatentCase(case_id=str(absolute_case_dir), title="Absolute"))
+
+    assert not absolute_case_dir.exists()
 
 
 def test_repository_round_trip_and_source_copy(tmp_path: Path):
@@ -49,6 +76,44 @@ def test_create_builds_case_layout_and_source_is_content_addressed_read_only(
     assert stored.name == f"{digest}-{source.name}"
     write_bits = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
     assert stored.stat().st_mode & write_bits == 0
+
+
+def test_source_digest_matches_saved_bytes_when_source_changes_after_read(
+    tmp_path: Path,
+):
+    class ChangingSourcePath(type(Path())):
+        def read_bytes(self) -> bytes:
+            content = super().read_bytes()
+            super().write_bytes(b"changed-after-read")
+            return content
+
+    repo = CaseRepository(tmp_path)
+    case = PatentCase(case_id="CN-2026-0003", title="Race")
+    repo.create(case)
+    source = tmp_path / "race.txt"
+    source.write_bytes(b"original")
+
+    stored = repo.add_source(case.case_id, ChangingSourcePath(source))
+
+    stored_bytes = stored.read_bytes()
+    stored_digest = stored.name.partition("-")[0]
+    assert stored_digest == hashlib.sha256(stored_bytes).hexdigest()[:12]
+
+
+def test_stored_source_rejects_overwrite(tmp_path: Path):
+    repo = CaseRepository(tmp_path)
+    case = PatentCase(case_id="CN-2026-0004", title="Immutable")
+    repo.create(case)
+    source = tmp_path / "immutable.txt"
+    source.write_bytes(b"original")
+    stored = repo.add_source(case.case_id, source)
+
+    if os.name == "posix" and os.geteuid() == 0:
+        pytest.skip("POSIX root can bypass read-only mode bits")
+
+    with pytest.raises(PermissionError):
+        stored.write_bytes(b"tampered")
+    assert stored.read_bytes() == b"original"
 
 
 def test_case_create_cli_creates_workspace_layout(tmp_path: Path):
