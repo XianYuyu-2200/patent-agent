@@ -1,6 +1,6 @@
 ---
 name: cn-patent-orchestrator
-description: Use when starting, resuming, routing, approving, invalidating, or inspecting an end-to-end Chinese patent case workspace.
+description: Use when starting, resuming, routing, approving, invalidating, or inspecting a Chinese patent case for intake, invention mining, prior-art search, patentability analysis, claim strategy, claim drafting, specification drafting, quality review, or document export.
 ---
 
 # Chinese Patent Case Orchestrator
@@ -17,14 +17,14 @@ Treat `case.json` as the source of truth. Route one permitted stage at a time, p
 ## Workflow
 
 1. Read `case.json` before every routing decision. Preserve its current stage and approvals; never reconstruct them from chat history.
-2. Validate the current state, required inputs, and source anchors. Allow only `confirmed` or `source-backed` facts into final drafting inputs. Keep `inferred`, `missing`, and `conflicted` facts as unresolved questions; do not present them as final drafting facts.
+2. Validate the current state, required inputs, and source anchors. Allow only `confirmed` or `source-backed` facts into final drafting inputs. Never use `inferred`, `missing`, or `conflicted` facts as final drafting inputs. Keep them as unresolved questions.
 3. Enforce the adjudicated gates:
-   - Require `technical-solution` before entering search.
-   - Require `claim-set` before entering drafting.
-   - Require `final-delivery` before external export; also require no open high-severity review issue and no stale export input.
+   - Require `technical-solution` before entering `SEARCH`.
+   - Require `claim-set` before entering `DRAFTING`.
+   - Require `final-delivery` before external export. Also require no open high-severity review issue and no stale export input.
 4. Select exactly one production skill at a time for the current stage. Invoke no second production skill until all declared outputs from exactly one selected production skill are saved and `case.json` is updated.
 5. Use only the selected production skill's declared artifact contract. Do not invent parallel spreadsheets, alternate document packages, or downstream drafts outside that contract.
-6. When claims change materially, mark every `specification`, `quality-review`, and `DOCX` artifact stale in `case.json` before routing further. Require specification regeneration, quality review, and DOCX export again.
+6. When claims change materially, mark every `specification`, `quality-review`, and `DOCX` artifact stale in `case.json`. Do this before routing further, then require specification regeneration, quality review, and DOCX export again.
 7. Save unresolved questions and source anchors with the routed artifact. Report only the next allowed action, not an unapproved downstream package.
 
 ## Allowed Routes and Artifacts
