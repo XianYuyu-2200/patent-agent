@@ -3170,3 +3170,30 @@ def test_document_export_report_has_one_coherent_forward_status():
     assert "explicit ready-forward placeholder" not in report
     assert "`git diff --check`" in report
     assert "clean status" in report
+
+
+def test_document_export_scoped_forward_exception_is_persisted_consistently():
+    paths = (
+        ROOT / ".superpowers" / "sdd" / "task-5j-brief.md",
+        ROOT / "docs" / "superpowers" / "plans" / "2026-07-13-cn-patent-agent-phase-1.md",
+        ROOT / "tests" / "skill_scenarios" / "patent-document-export-baseline.md",
+        ROOT / "task-5j-report.md",
+    )
+    required = (
+        "2026-07-14 spec-owner approval",
+        "Task 5J only",
+        "collaboration hard thread limit",
+        "previously created with `fork_turns=none` as a forward-only Agent",
+        "strict read-only and isolation constraints",
+        "real exporter execution",
+        "controller-independent DOCX/source/hash verification",
+        "not a general exception for any other task or future forward",
+    )
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for phrase in required:
+            assert phrase in text, f"{path}: missing {phrase}"
+
+    report = paths[-1].read_text(encoding="utf-8")
+    status = report.split("## Status", 1)[1].split("## Baseline", 1)[0]
+    assert "exception recorded, final reviewer approval pending" in status

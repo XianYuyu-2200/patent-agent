@@ -106,6 +106,10 @@ Exactly one blocked checklist; `docx_generated: false`; literal `no DOCX generat
 
 # Task 5J independent ready forward
 
+## Spec-owner scoped exception
+
+2026-07-14 spec-owner approval records a scoped exception for Task 5J only: because the collaboration hard thread limit prevented a new child thread, the ready forward may reuse an Agent previously created with `fork_turns=none` as a forward-only Agent. That reused Agent remains under strict read-only and isolation constraints for this turn. real exporter execution and controller-independent DOCX/source/hash verification are required; the reused Agent's statement alone is insufficient. This is not a general exception for any other task or future forward.
+
 ## Isolation
 
 The collaboration tree had reached its hard new-thread limit. The controller therefore reused an Agent that had originally been created with `fork_turns=none` for an earlier forward-only task. For this turn it was instructed not to rely on earlier context and to read only `skills/patent-document-export/SKILL.md` plus the ignored Task 5J fixture inputs, workflow state, export-path configuration, designated exporter, and template. It was forbidden to read tests, reports, briefs, review material, other Skills, or Git history, and could write only inside the fixture output directory. This provenance limitation is disclosed rather than represented as a newly spawned Agent.

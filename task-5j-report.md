@@ -2,7 +2,11 @@
 
 ## Status
 
-Reviewer-contract repair and available control verification have passed. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. Final Task 5J approval remains pending because the binding fresh-new-Agent forward specification could not be satisfied after the collaboration tree reached its hard thread limit; the reused forward-only Agent provenance and unavailable LibreOffice render path are disclosed below.
+Status: exception recorded, final reviewer approval pending. Reviewer-contract repair and available control verification have passed. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. The Task 5J-only exception and unavailable LibreOffice render path are disclosed below; this report does not claim final reviewer approval.
+
+## Spec-owner scoped exception
+
+2026-07-14 spec-owner approval records a scoped exception for Task 5J only: because the collaboration hard thread limit prevented a new child thread, the ready forward may reuse an Agent previously created with `fork_turns=none` as a forward-only Agent. That reused Agent remains under strict read-only and isolation constraints for this turn. real exporter execution and controller-independent DOCX/source/hash verification are required; the reused Agent's statement alone is insufficient. This is not a general exception for any other task or future forward.
 
 ## Baseline
 
@@ -30,10 +34,11 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 - Negation-scope RED: both `Do not block export; deliver a placeholder DOCX.` and `The exporter is unavailable; do not stop, mark the DOCX readable.` escaped until negation scope was limited at clause delimiters and coordinated negation was prevented from crossing semicolons/contrast markers.
 - Reviewer RED round 4: all ten new unrelated-negation/unsafe-tail probes escaped, including the eight required CNIPA/PDF/ZIP/stale/version/manager-approval/CRM/filing-completion cases plus colon and `then` boundary variants. The fix removed whole-sentence legacy skipping, added clause boundaries and action-local negation, and added concept combinations for external delivery, extra formats, stale/version bypass, invalid approval use, billing/CRM records, and filing-completion claims.
 - Reviewer RED round 5: all five targeted stale/mismatch state probes escaped (`5 failed, 40 passed, 213 deselected`). The fix now combines `stale` with input/artifact/application/version objects and `mismatch`/`mismatched` with version/input/artifact/application objects without depending on word order, then applies the existing action-local export/proceed/release/finalize/deliver gate.
+- Scoped-exception RED: the four-way persistence test failed first because the binding brief, tracked phase plan, tracked ready evidence, and report did not yet contain the complete 2026-07-14 spec-owner exception contract. It passed only after all four audit locations recorded the same Task 5J-only constraints.
 - The helper now splits and normalizes sentences, evaluates order-independent dangerous concept combinations, and recognizes action-scoped or coordinated safety negation; legacy regexes remain supplemental.
-- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q -k "document_export"` -> `97 passed, 161 deselected`.
-- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q` -> `258 passed`.
-- `$env:PYTHONUTF8='1'; python -m pytest -q` -> `271 passed`.
+- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q -k "document_export"` -> `98 passed, 161 deselected`.
+- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q` -> `259 passed`.
+- `$env:PYTHONUTF8='1'; python -m pytest -q` -> `272 passed`.
 - `$env:PYTHONUTF8='1'; python C:\\Users\\xiany\\.codex\\skills\\.system\\skill-creator\\scripts\\quick_validate.py skills\\patent-document-export` -> `Skill is valid!`.
 - Strict UTF-8 decode plus replacement/mojibake scan across Skill, metadata, tracked evidence, and report -> passed for 4 files.
 - Real ready forward invoked the ignored deterministic fixture exporter -> exactly `application-v5.docx` (38,474 bytes) and `delivery-checklist-v5.md` (2,578 bytes).
@@ -50,6 +55,8 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 - `tests/test_plugin_contract.py`
 - `tests/skill_scenarios/patent-document-export-baseline.md`
 - `task-5j-report.md`
+- `docs/superpowers/plans/2026-07-13-cn-patent-agent-phase-1.md`
+- `.superpowers/sdd/task-5j-brief.md` (binding but Git-ignored)
 
 ## Self-review
 

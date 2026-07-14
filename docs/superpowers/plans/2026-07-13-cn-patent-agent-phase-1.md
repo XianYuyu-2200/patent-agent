@@ -692,6 +692,8 @@ Use the following exact contracts. Every file contains `Inputs`, `Workflow`, `Ou
 
 Every skill stops on missing required inputs, conflicting source material, an unanchored conclusion, absent required approval, or an attempt to use `inferred`, `missing`, or `conflicted` facts as final text. `cn-claim-drafting` additionally stops when a claimed feature lacks a feature-tree identifier. `patent-document-export` additionally stops on stale artifacts or open high-severity issues.
 
+**Task 5J-only forward exception:** 2026-07-14 spec-owner approval records a scoped exception for Task 5J only: because the collaboration hard thread limit prevented a new child thread, the ready forward may reuse an Agent previously created with `fork_turns=none` as a forward-only Agent. That reused Agent remains under strict read-only and isolation constraints for this turn. real exporter execution and controller-independent DOCX/source/hash verification are required; the reused Agent's statement alone is insufficient. This is not a general exception for any other task or future forward.
+
 - [ ] **Step 5: Generate `agents/openai.yaml` metadata and validate every skill**
 
 Run the skill-creator generator for each folder using these exact display names: `中国专利案件编排`, `专利案件受理`, `发明挖掘`, `现有技术检索`, `可专利性分析`, `权利要求策略`, `权利要求撰写`, `说明书撰写`, `专利质量审查`, and `专利文件导出`. Set each `short_description` to the corresponding responsibility and set `default_prompt` to `请处理当前案件并生成本阶段规定的结构化产物。`.
