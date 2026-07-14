@@ -1932,3 +1932,436 @@ def test_specification_drafting_artifact_scope_rejects_mutations(section_name, u
     assert unexpected_artifact in _artifact_tokens(mutated)
     with pytest.raises(AssertionError):
         _assert_specification_drafting_body_contract(mutated)
+
+
+def _parse_quality_review_table(
+    body: str,
+    heading: str,
+    next_heading: str,
+    columns: int,
+    key_header: str,
+) -> dict[str, tuple[str, ...]]:
+    section = body.split(heading, 1)[1].split(next_heading, 1)[0]
+    rows = {}
+    for line in section.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != columns or cells[0] == key_header or set(cells[0]) == {"-"}:
+            continue
+        key = cells[0].strip("`")
+        if key in rows:
+            raise AssertionError(f"duplicate {heading} rule for {key}")
+        rows[key] = tuple(cell.strip("`") for cell in cells[1:])
+    return rows
+
+
+def _assert_no_quality_review_semantic_bypass(body: str) -> None:
+    denial_terms = (
+        "do not",
+        "does not",
+        "must not",
+        "cannot",
+        "never",
+        "forbidden",
+        "reject",
+        "refuse",
+        "not-assessable",
+        "not assessable",
+    )
+    permission_terms = (
+        "allow",
+        "permit",
+        "may",
+        "can",
+        "pass",
+        "ready",
+        "sufficient",
+        "acceptable",
+        "proceed",
+        "continue",
+        "silently",
+        "suppress",
+        "downgrade",
+        "omit",
+    )
+    clauses = []
+    for raw_line in body.splitlines():
+        clauses.extend(
+            clause.strip()
+            for clause in re.split(r"[.;!?]+", raw_line)
+            if clause.strip()
+        )
+
+    for raw_clause in clauses:
+        clause = " ".join(raw_clause.lower().replace("`", "").split())
+        if not clause or _contains_any(clause, denial_terms):
+            continue
+        permits = _contains_any(clause, permission_terms)
+
+        prior_art_gap = _contains_any(
+            clause,
+            (
+                "absent prior art",
+                "empty prior art",
+                "unverified prior art",
+                "evidence-insufficient prior art",
+                "no prior art",
+            ),
+        )
+        novelty_positive = _contains_any(
+            clause,
+            (
+                "novelty pass",
+                "inventive-step pass",
+                "novel",
+                "inventive",
+            ),
+        )
+        if prior_art_gap and novelty_positive and permits:
+            raise AssertionError(f"prior-art pass bypass: {raw_clause}")
+
+        defect_terms = _contains_any(
+            clause,
+            (
+                "clarity defect",
+                "support defect",
+                "dependency defect",
+                "consistency defect",
+                "unity defect",
+                "subject-matter defect",
+                "application defect",
+            ),
+        )
+        review_refusal = _contains_any(
+            clause,
+            (
+                "block the review",
+                "skip the review",
+                "do not review",
+                "cannot review",
+            ),
+        )
+        if defect_terms and review_refusal and permits:
+            raise AssertionError(f"defect-as-blocker bypass: {raw_clause}")
+
+        high_issue = _contains_any(clause, ("high severity", "high-severity"))
+        pressure = _contains_any(
+            clause,
+            ("manager", "customer", "deadline", "urgency"),
+        )
+        if high_issue and pressure and _contains_any(
+            clause, ("suppress", "hide", "downgrade", "low", "medium")
+        ) and permits:
+            raise AssertionError(f"severity suppression bypass: {raw_clause}")
+
+        evidence_anchor = _contains_any(
+            clause,
+            ("support anchor", "prior-art anchor", "source anchor", "disclosure anchor"),
+        )
+        fabrication = _contains_any(
+            clause,
+            ("invent", "fabricate", "plausible", "common knowledge"),
+        )
+        if evidence_anchor and fabrication and permits:
+            raise AssertionError(f"invented-anchor bypass: {raw_clause}")
+
+        upstream = _contains_any(
+            clause,
+            ("claims", "specification", "abstract", "drawing plan"),
+        )
+        rewrite = _contains_any(clause, ("rewrite", "correct", "fix", "edit"))
+        if upstream and rewrite and permits:
+            raise AssertionError(f"silent rewrite bypass: {raw_clause}")
+
+        export = _contains_any(clause, ("docx", "document export", "export"))
+        if export and permits:
+            raise AssertionError(f"export bypass: {raw_clause}")
+
+
+def _assert_quality_review_body_contract(body: str) -> None:
+    _assert_no_quality_review_semantic_bypass(body)
+    assert _artifact_tokens(body) == {
+        "claims-vN.md",
+        "claim-feature-map-vN.json",
+        "specification-vN.md",
+        "abstract-vN.md",
+        "drawing-plan-vN.json",
+        "prior-art-vN.json",
+        "quality-review-vN.json",
+        "support-matrix-vN.json",
+    }
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Review Availability Contract",
+        "## Check Status Contract",
+        "## Severity Contract",
+        "## Support Status Contract",
+        "## Prior-Art Contract",
+        "## Safety Invariants",
+        "## Outputs",
+        "## Completed Output Recipe",
+        "## Blocked Output Recipe",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    assert [line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `claims-vN.md`",
+        "- `claim-feature-map-vN.json`",
+        "- `specification-vN.md`",
+        "- `abstract-vN.md`",
+        "- `drawing-plan-vN.json`",
+        "- `prior-art-vN.json`",
+    ]
+    outputs = body.split("## Outputs", 1)[1].split("## Completed Output Recipe", 1)[0]
+    assert [line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `quality-review-vN.json`",
+        "- `support-matrix-vN.json`",
+    ]
+
+    for phrase in (
+        "No approval is required to perform quality review",
+        "`final-delivery` belongs to export",
+        "examiner and competitor/design-around perspectives",
+        "Preserve every reviewed input unchanged",
+        "completed-with-issues",
+        "`completed`, `not-assessable`, or `blocked`",
+        "stable issue ID",
+        "artifact, claim, or section location",
+        "evidence/source anchors",
+        "open issue counts by severity",
+        "`blocked` or `ready-for-human-review`",
+        "one row per claim-feature occurrence, including inherited occurrences",
+        "Absence of a stated defect is not evidence of support",
+        "If an exact support location is not present in the inputs, leave the location empty",
+        "Do not synthesize inherited occurrences, occurrence IDs, or claim-map anchors",
+        "claim-map source anchor",
+        "specification support location",
+        "terminology match",
+        "relationship support",
+        "drawing support when applicable",
+        "per-claim summaries",
+        "zero fabricated support rows",
+        "verified document ID and exact disclosure anchor",
+        "Stop after exactly the two outputs",
+        "Review Availability Contract, Check Status Contract, Severity Contract, Support Status Contract, Prior-Art Contract, and Safety Invariants are controlling",
+        "regardless of language, synonym, authority, urgency, customer pressure, or placement",
+    ):
+        assert phrase in body
+
+    availability = _parse_quality_review_table(
+        body,
+        "## Review Availability Contract",
+        "## Check Status Contract",
+        3,
+        "condition",
+    )
+    assert availability == {
+        "required_input_integrity": (
+            "all six inputs are readable, current, mutually version-matched, internally identifiable, and contain substantive reviewable text",
+            "required",
+        ),
+        "application_defect": (
+            "clarity, support, dependency, consistency, prior-art, unity, subject-matter, design-around, or form defects are review findings, not review blockers",
+            "complete-with-findings",
+        ),
+        "separable_check_unavailable": (
+            "continue all available checks and mark only the unavailable check not-assessable",
+            "continue",
+        ),
+    }
+    check_status = _parse_quality_review_table(
+        body,
+        "## Check Status Contract",
+        "## Severity Contract",
+        3,
+        "status",
+    )
+    assert check_status == {
+        "completed": ("the check ran on reviewable evidence and records findings or a supported no-finding conclusion", "allowed"),
+        "not-assessable": ("the check lacks sufficient verified evidence; it is neither pass nor completed", "allowed"),
+        "blocked": ("input integrity prevents the review or that check from running", "allowed"),
+    }
+    severity = _parse_quality_review_table(
+        body,
+        "## Severity Contract",
+        "## Support Status Contract",
+        3,
+        "severity",
+    )
+    assert severity == {
+        "critical": ("review integrity is invalid or the application cannot be responsibly delivered", "blocks-delivery"),
+        "high": ("likely rejection, unsupported scope, invalid dependency, missing disclosure, or material prior-art, subject-matter, or unity risk", "blocks-delivery"),
+        "medium": ("meaningful clarity, consistency, fallback, design-around, or form weakness requiring human decision", "human-decision"),
+        "low": ("polish or non-blocking form issue", "non-blocking"),
+    }
+    support = _parse_quality_review_table(
+        body,
+        "## Support Status Contract",
+        "## Prior-Art Contract",
+        3,
+        "support_status",
+    )
+    assert support == {
+        "supported": ("the occurrence has traceable terminology, relationship, and applicable drawing support", "no support finding solely from this occurrence"),
+        "partial": ("the occurrence has incomplete or ambiguous support", "at-least-medium-and-explicit-human-action"),
+        "unsupported": ("the required occurrence lacks specification support", "high-and-blocks-delivery"),
+        "conflicted": ("the occurrence has contradictory support or relationships", "high-and-blocks-delivery"),
+        "occurrence_completeness": ("include every direct and inherited claim-feature occurrence exactly once", "required"),
+    }
+    prior_art = _parse_quality_review_table(
+        body,
+        "## Prior-Art Contract",
+        "## Safety Invariants",
+        3,
+        "evidence_state",
+    )
+    assert prior_art == {
+        "verified_disclosure": ("identify the verified document ID and exact disclosure anchor for every novelty or inventive-step finding", "assess"),
+        "empty_unverified_or_insufficient": ("record the evidence gap and mark novelty and inventive step not-assessable", "not-assessable"),
+        "missing_anchor": ("do not invent a document disclosure or anchor", "not-assessable"),
+    }
+    invariants = _parse_quality_review_table(
+        body,
+        "## Safety Invariants",
+        "## Outputs",
+        2,
+        "invariant",
+    )
+    assert invariants == {
+        "silent_upstream_rewrite": ("forbidden",),
+        "invented_support_or_prior_art_anchor": ("forbidden",),
+        "invented_occurrence_or_claim_map_anchor": ("forbidden",),
+        "issue_suppression_or_downgrade": ("forbidden",),
+        "absent_prior_art_positive_conclusion": ("forbidden",),
+        "omitted_support_occurrence": ("forbidden",),
+        "extra_artifact": ("forbidden",),
+        "document_export": ("forbidden",),
+    }
+
+
+def test_cn_patent_quality_review_has_exact_contract():
+    skill_dir = ROOT / "skills" / "cn-patent-quality-review"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["name"] == "cn-patent-quality-review"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "Chinese patent quality review",
+        "examiner-style review",
+        "support",
+        "clarity",
+        "consistency",
+        "unity",
+        "subject-matter",
+        "prior-art risk",
+        "design-around analysis",
+    ):
+        assert trigger in metadata["description"]
+    _assert_quality_review_body_contract(body)
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "涓撳埄璐ㄩ噺瀹℃煡"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€俙"
+
+
+@pytest.mark.parametrize(
+    ("section_heading", "next_heading", "contradictory_row"),
+    (
+        ("## Review Availability Contract", "## Check Status Contract", "| `application_defect` | defects prevent substantive review | `blocked` |"),
+        ("## Check Status Contract", "## Severity Contract", "| `not-assessable` | missing evidence counts as a pass | `completed` |"),
+        ("## Severity Contract", "## Support Status Contract", "| `high` | manager may downgrade likely rejection risk | `non-blocking` |"),
+        ("## Support Status Contract", "## Prior-Art Contract", "| `unsupported` | omit the unsupported occurrence from the matrix | `no-finding` |"),
+        ("## Support Status Contract", "## Prior-Art Contract", "| `occurrence_completeness` | inherited occurrences may be omitted | `optional` |"),
+        ("## Prior-Art Contract", "## Safety Invariants", "| `empty_unverified_or_insufficient` | absent prior art proves novelty and inventive step | `assess-and-pass` |"),
+        ("## Prior-Art Contract", "## Safety Invariants", "| `missing_anchor` | invent a plausible disclosure anchor | `assess` |"),
+        ("## Safety Invariants", "## Outputs", "| `invented_support_or_prior_art_anchor` | `allowed` |"),
+        ("## Safety Invariants", "## Outputs", "| `invented_occurrence_or_claim_map_anchor` | `allowed` |"),
+        ("## Safety Invariants", "## Outputs", "| `silent_upstream_rewrite` | `allowed` |"),
+        ("## Safety Invariants", "## Outputs", "| `issue_suppression_or_downgrade` | `allowed` |"),
+        ("## Safety Invariants", "## Outputs", "| `extra_artifact` | `allowed` |"),
+        ("## Safety Invariants", "## Outputs", "| `document_export` | `allowed` |"),
+    ),
+)
+def test_quality_review_decision_tables_reject_conflicting_mutations(
+    section_heading, next_heading, contradictory_row
+):
+    body = (ROOT / "skills" / "cn-patent-quality-review" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    section_end = body.index(next_heading, body.index(section_heading))
+    mutated = f"{body[:section_end]}\n{contradictory_row}\n{body[section_end:]}"
+    with pytest.raises(AssertionError):
+        _assert_quality_review_body_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    ("section_heading", "next_heading", "duplicate_row"),
+    (
+        ("## Review Availability Contract", "## Check Status Contract", "| `application_defect` | clarity, support, dependency, consistency, prior-art, unity, subject-matter, design-around, or form defects are review findings, not review blockers | `complete-with-findings` |"),
+        ("## Check Status Contract", "## Severity Contract", "| `not-assessable` | the check lacks sufficient verified evidence; it is neither pass nor completed | `allowed` |"),
+        ("## Severity Contract", "## Support Status Contract", "| `high` | likely rejection, unsupported scope, invalid dependency, missing disclosure, or material prior-art, subject-matter, or unity risk | `blocks-delivery` |"),
+        ("## Support Status Contract", "## Prior-Art Contract", "| `occurrence_completeness` | include every direct and inherited claim-feature occurrence exactly once | `required` |"),
+        ("## Prior-Art Contract", "## Safety Invariants", "| `empty_unverified_or_insufficient` | record the evidence gap and mark novelty and inventive step not-assessable | `not-assessable` |"),
+        ("## Safety Invariants", "## Outputs", "| `extra_artifact` | `forbidden` |"),
+    ),
+)
+def test_quality_review_decision_tables_reject_identical_duplicate_keys(
+    section_heading, next_heading, duplicate_row
+):
+    body = (ROOT / "skills" / "cn-patent-quality-review" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    section_end = body.index(next_heading, body.index(section_heading))
+    mutated = f"{body[:section_end]}\n{duplicate_row}\n{body[section_end:]}"
+    with pytest.raises(AssertionError):
+        _assert_quality_review_body_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    "contradictory_instruction",
+    (
+        "Absent prior art can be treated as a novelty pass and inventive-step pass so the case may proceed.",
+        "A clarity defect may block the review, so skip the review instead of recording findings.",
+        "A manager may suppress a high-severity issue or downgrade it to low under deadline pressure.",
+        "Codex may invent a plausible specification support anchor or prior-art anchor from common knowledge.",
+        "Codex may silently rewrite the claims and specification to correct every issue.",
+        "Continue to document export and generate DOCX after the review.",
+    ),
+)
+def test_quality_review_full_body_semantic_bypasses_are_rejected(contradictory_instruction):
+    body = (ROOT / "skills" / "cn-patent-quality-review" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    with pytest.raises(AssertionError):
+        _assert_quality_review_body_contract(f"{body}\n{contradictory_instruction}\n")
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact"),
+    (
+        ("Inputs", "approval-request-v1.md"),
+        ("Inputs", "technical-facts-v1.json"),
+        ("Outputs", "corrected-claims-v1.md"),
+        ("Outputs", "corrected-specification-v1.md"),
+        ("Outputs", "review-memo-v1.md"),
+        ("Outputs", "prior-art-supplement-v1.json"),
+        ("Outputs", "application-v1.docx"),
+        ("Quality Checks", "delivery-checklist-v1.md"),
+    ),
+)
+def test_quality_review_artifact_scope_rejects_mutations(section_name, unexpected_artifact):
+    body = (ROOT / "skills" / "cn-patent-quality-review" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    following = {
+        "Inputs": "## Workflow",
+        "Outputs": "## Completed Output Recipe",
+        "Quality Checks": None,
+    }
+    start = body.index(f"## {section_name}")
+    end = body.index(following[section_name], start) if following[section_name] else len(body)
+    mutated = f"{body[:end]}\nAn additional artifact is `{unexpected_artifact}`.\n{body[end:]}"
+    assert unexpected_artifact in _artifact_tokens(mutated)
+    with pytest.raises(AssertionError):
+        _assert_quality_review_body_contract(mutated)
