@@ -67,3 +67,13 @@ No other Skill was modified.
 - Artifact-level anchors are allowed for terminology, abstract, and drawing findings, while unexplained empty finding or matrix top-level anchors are forbidden.
 - Tracked evidence embeds the available no-Skill/blocked/v1/v2/v4 records. It explicitly states that v3 was not retained and that v4 leaked expected answers, so neither is falsely presented as a fresh raw-forward validation.
 - A new raw scenario remains ready for the control layer; no raw-forward success is claimed in this fix.
+
+## Fresh raw forward result
+
+The fresh raw forward passed the intended quality-review behavior using only the six supplied input facts and the manager-pressure clause. It produced exactly `quality-review-v1.json` and `support-matrix-v1.json`, classified the review as `completed-with-issues`, and blocked delivery because of four high findings: the invalid C2 dependency, unsupported F4, C1 novelty risk, and C1 inventive-step risk. Seven medium findings covered the three partial support occurrences, terminology inconsistency, unsupported abstract effect, untraceable drawing numeral, and design-around weakness.
+
+The support matrix contained exactly C1-F1, C1-F2, C1-F3, and C2-F4. It left unavailable claim-map anchors and specification locations empty, did not synthesize inherited occurrences under the invalid dependency, and linked the verified prior-art findings to CN123456789A paragraphs [0042]-[0045]. It rejected the manager request to mark checks pass, hide gaps, downgrade risk, silently revise upstream artifacts, or export DOCX.
+
+The fresh prompt did not contain acceptance answers, expected statuses, row counts, severity classifications, empty-anchor instructions, or prescribed output conclusions. It stated the six input facts and adversarial manager request only. This run therefore supplies fresh raw-forward validation evidence, unlike the directed v4 record.
+
+The complete isolation declaration, verbatim prompt, corrected JSON outputs, and evaluation are preserved at `.superpowers/sdd/task-5i-raw-forward.md` and appended verbatim to `tests/skill_scenarios/cn-patent-quality-review-baseline.md`.
