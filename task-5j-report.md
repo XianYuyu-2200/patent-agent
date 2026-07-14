@@ -2,7 +2,7 @@
 
 ## Status
 
-Status: exception recorded, final reviewer approval pending. Reviewer-contract repair and available control verification have passed. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. The Task 5J-only exception and unavailable LibreOffice render path are disclosed below; this report does not claim final reviewer approval.
+Status: Task 5J approved. Critical/Important/Minor findings: none. Reviewer-contract repair and control verification passed. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. The Task 5J-only exception and unavailable LibreOffice render path are disclosed below. Final independent review found no remaining issues.
 
 ## Spec-owner scoped exception
 
@@ -47,6 +47,7 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 - Structural fallback -> A4 210 × 297 mm, 25.4 mm margins, 12.5 mm header/footer distances, zero tables/images/drawings/text boxes/external relationships, expected paragraph styles and review footer.
 - `git diff --check` -> no whitespace errors; only normal LF/CRLF conversion warnings.
 - Post-commit `git status --short` -> clean status.
+- Final independent task review -> Spec Compliance approved; no Critical, Important, or Minor findings.
 
 ## Changed files
 

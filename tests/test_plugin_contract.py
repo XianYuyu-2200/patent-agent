@@ -3165,7 +3165,8 @@ def test_document_export_report_has_one_coherent_forward_status():
     assert "WinError 2" in report
     assert "structural fallback" in report
     status = report.split("## Status", 1)[1].split("## Baseline", 1)[0]
-    assert "complete" not in status.lower()
+    assert "Task 5J approved" in status
+    assert "final reviewer approval pending" not in status
     assert "The complete ready-forward prompt, verbatim output, control verification, and evaluation are tracked" in report
     assert "explicit ready-forward placeholder" not in report
     assert "`git diff --check`" in report
@@ -3196,4 +3197,5 @@ def test_document_export_scoped_forward_exception_is_persisted_consistently():
 
     report = paths[-1].read_text(encoding="utf-8")
     status = report.split("## Status", 1)[1].split("## Baseline", 1)[0]
-    assert "exception recorded, final reviewer approval pending" in status
+    assert "Task 5J approved" in status
+    assert "Critical/Important/Minor findings: none" in status
