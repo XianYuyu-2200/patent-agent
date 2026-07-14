@@ -133,3 +133,46 @@ The control layer independently reran both scenarios after commit `73e3010` usin
 - `task-5h-blocked-forward-v2.md`: **blocked**. It emitted exactly the three declared artifacts; specification and abstract explicitly contain the required no-text statements; drawing plan has zero figures and zero numerals; fatal approval, stale-claims, missing-anchor, inferred, and conflicted support gaps are recorded.
 
 The full verbatim independent transcripts were appended to `tests/skill_scenarios/cn-specification-drafting-baseline.md` without replacing the baseline, first ready failure, or provisional transcript history. The previous corrected-forward concern is resolved.
+
+## Reviewer semantic-contract hardening
+
+### RED
+
+Reviewer feedback showed that correct table rows and required phrases could coexist with contradictory instructions appended elsewhere in the Skill. Tests were added before implementation for four full-body semantic categories, inserted into Workflow, Stop Conditions, Quality Checks, and document end, plus identical duplicate-row mutations for Eligibility, Request Handling, and Safety Invariants.
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -v
+7 failed, 16 passed, 88 deselected
+```
+
+The four semantic variants and all three identical duplicate mutations passed through the old helper, reproducing the review finding.
+
+### GREEN implementation
+
+- Added a category-based full-body consistency check rather than exact-sentence blacklist matching. It combines permission/sufficiency language, domain keywords, and absence of denial/rejection language to detect:
+  - future/oral/managerial/promised approval treated as sufficient;
+  - weakly supported approved claim features permitted to be rewritten or omitted;
+  - `inferred`, `missing`, or `conflicted` facts permitted in definitive specification prose;
+  - quality-review/DOCX continuation permitted in this stage.
+- Mutation coverage uses English, Chinese, and synonymous formulations at different document positions.
+- Eligibility, Request Handling, and Safety Invariants parsers now reject every repeated key, including byte-identical duplicate rows, before dictionary insertion.
+- Added explicit precedence text: the three decision tables control, and contrary instructions are invalid regardless of language, synonym, authority, urgency, or placement.
+- Preserved the exact three inputs, exact three outputs, and existing five Safety Invariants. No other Skill changed.
+
+### GREEN verification
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -v
+23 passed, 88 deselected
+
+python -m pytest tests/test_plugin_contract.py -q
+111 passed
+
+python -m pytest -q
+124 passed
+
+PYTHONUTF8=1 quick_validate.py skills/cn-specification-drafting
+Skill is valid!
+```
+
+The existing independent ready/blocked forward evidence remains unchanged and valid; no new forward run was required for this test-contract-only hardening.
