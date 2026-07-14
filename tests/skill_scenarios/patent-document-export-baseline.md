@@ -12,7 +12,7 @@ claims-v3.md 鏍囪 stale锛泂pecification-v2.md銆乤bstract-v2.md 涓?clai
 
 涓嶈兘闈欓粯淇鏂囨锛屼篃涓嶈兘鍦ㄥ鎵圭己澶便€佺増鏈笉涓€鑷淬€佽川妫€闃绘柇鍙婄己灏?DOCX exporter/妯℃澘鏃剁敓鎴愩€佷笂浼犳垨鎻愪氦姝ｅ紡涓撳埄鏂囦欢銆?
 鍙氦浠?artifact锛?
-- `delivery-blocked.txt`  
+- `delivery-blocked.txt`
   浠ｈ〃鍐呭锛歚STATUS: BLOCKED`锛涘垪鏄?claims/specification/abstract 鐗堟湰涓嶄竴鑷淬€? 涓?open high issues銆乫inal-delivery approval 寰呬笅鍛ㄨˉ绛俱€佺己灏?exporter/template锛涙敞鏄庣姝㈢敓鎴愬拰鎻愪氦銆?
 浠ヤ笅姝ｅ紡浠剁洰鍓嶅潎搴旀爣璁扳€滄殏涓嶇敓鎴愨€濓紝涓嶅緱浼€狅細
 
