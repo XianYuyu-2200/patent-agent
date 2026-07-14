@@ -5,7 +5,17 @@ description: Use when Chinese patent quality review or examiner-style review is 
 
 # Chinese Patent Quality Review
 
-Independently review a Chinese invention patent or utility model after claims and specification drafting and before export. Review from examiner and competitor/design-around perspectives. Cover mechanical/hardware and software/AI cases without importing a domain pack. Preserve every reviewed input unchanged and emit exactly two structured review artifacts.
+Independently review a Chinese invention patent or utility model after claims and specification drafting and before export. Review from examiner and competitor/design-around perspectives. Preserve every reviewed input unchanged and emit exactly two structured review artifacts.
+
+## Domain Pack Routing
+
+Read `../mechanical-hardware-patent/references/checklist.md` only when `PatentCase.technical_domain` is exactly `mechanical-hardware`.
+
+Read `../software-ai-patent/references/checklist.md` only when `PatentCase.technical_domain` is exactly `software-ai`.
+
+When `PatentCase.technical_domain` is missing, `None`, or any other value, do not load either domain pack and do not infer a domain from the technical content.
+
+Treat each domain checklist as supplemental to this core Skill; it never overrides the evidence gates, outputs, stop conditions, or safety invariants below.
 
 ## Inputs
 

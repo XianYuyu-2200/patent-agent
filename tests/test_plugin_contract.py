@@ -19,6 +19,11 @@ ARTIFACT_PATTERN = (
     r"(?![\w.-])"
 )
 
+DOMAIN_ROUTING_REFERENCE_TOKENS = {
+    "PatentCase.technical_domain",
+    "checklist.md",
+}
+
 
 def _artifact_tokens(section: str) -> set[str]:
     tokens = set(re.findall(ARTIFACT_PATTERN, section))
@@ -924,7 +929,7 @@ def _assert_claim_strategy_body_contract(body: str) -> None:
         "feature-tree-vN.json",
         "patentability-vN.md",
         "protection-strategy-vN.md",
-    }
+    } | DOMAIN_ROUTING_REFERENCE_TOKENS
     workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
     steps = [line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()]
     gate = steps[0]
@@ -1084,7 +1089,7 @@ def _assert_claim_drafting_body_contract(body: str) -> None:
         "feature-tree-vN.json",
         "claims-vN.md",
         "claim-feature-map-vN.json",
-    }
+    } | DOMAIN_ROUTING_REFERENCE_TOKENS
     workflow = body.split("## Workflow", 1)[1].split("## Safety Invariants", 1)[0]
     steps = [line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()]
     gate = steps[0]
@@ -1603,7 +1608,7 @@ def _assert_specification_drafting_body_contract(body: str) -> None:
         "specification-vN.md",
         "abstract-vN.md",
         "drawing-plan-vN.json",
-    }
+    } | DOMAIN_ROUTING_REFERENCE_TOKENS
     for heading in (
         "## Inputs",
         "## Workflow",
@@ -2203,7 +2208,7 @@ def _assert_quality_review_body_contract(body: str) -> None:
         "prior-art-vN.json",
         "quality-review-vN.json",
         "support-matrix-vN.json",
-    }
+    } | DOMAIN_ROUTING_REFERENCE_TOKENS
     for heading in (
         "## Inputs",
         "## Workflow",
@@ -3199,3 +3204,91 @@ def test_document_export_scoped_forward_exception_is_persisted_consistently():
     status = report.split("## Status", 1)[1].split("## Baseline", 1)[0]
     assert "Task 5J approved" in status
     assert "Critical/Important/Minor findings: none" in status
+
+
+DOMAIN_ROUTED_CORE_SKILLS = (
+    "patent-invention-mining",
+    "cn-claim-strategy",
+    "cn-claim-drafting",
+    "cn-specification-drafting",
+    "cn-patent-quality-review",
+)
+
+
+def test_domain_packs_define_required_checks():
+    mechanical = (
+        ROOT / "skills/mechanical-hardware-patent/references/checklist.md"
+    ).read_text(encoding="utf-8")
+    software = (
+        ROOT / "skills/software-ai-patent/references/checklist.md"
+    ).read_text(encoding="utf-8")
+
+    for phrase in (
+        "部件关系",
+        "连接方式",
+        "位置关系",
+        "运动关系",
+        "替代结构",
+        "附图视图",
+        "附图标号",
+        "实用新型",
+    ):
+        assert phrase in mechanical
+
+    for phrase in (
+        "技术问题",
+        "数据输入",
+        "数据输出",
+        "数据处理",
+        "训练",
+        "推理",
+        "硬件环境",
+        "被控制对象",
+        "技术效果",
+        "方法、装置、设备和存储介质",
+        "业务规则",
+        "抽象算法",
+    ):
+        assert phrase in software
+
+
+def test_domain_packs_and_core_skills_define_exact_conditional_loading():
+    packs = {
+        "mechanical-hardware-patent": "mechanical-hardware",
+        "software-ai-patent": "software-ai",
+    }
+    for skill_name, domain in packs.items():
+        skill_dir = ROOT / "skills" / skill_name
+        text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        _, frontmatter, body = text.split("---", 2)
+        metadata = yaml.safe_load(frontmatter)
+
+        assert metadata["name"] == skill_name
+        assert metadata["description"].startswith("Use when ")
+        assert (
+            f"Load `references/checklist.md` only when "
+            f"`PatentCase.technical_domain` is exactly `{domain}`."
+        ) in body
+        assert "Do not load this domain pack when" in body
+        assert "Do not run a standalone workflow or produce standalone artifacts." in body
+        assert {
+            path.relative_to(skill_dir).as_posix()
+            for path in skill_dir.rglob("*")
+            if path.is_file()
+        } == {"SKILL.md", "references/checklist.md"}
+
+    routing_contracts = (
+        "Read `../mechanical-hardware-patent/references/checklist.md` only when "
+        "`PatentCase.technical_domain` is exactly `mechanical-hardware`.",
+        "Read `../software-ai-patent/references/checklist.md` only when "
+        "`PatentCase.technical_domain` is exactly `software-ai`.",
+        "When `PatentCase.technical_domain` is missing, `None`, or any other value, "
+        "do not load either domain pack and do not infer a domain from the technical content.",
+        "Treat each domain checklist as supplemental to this core Skill; it never overrides "
+        "the evidence gates, outputs, stop conditions, or safety invariants below.",
+    )
+    for skill_name in DOMAIN_ROUTED_CORE_SKILLS:
+        body = (ROOT / "skills" / skill_name / "SKILL.md").read_text(
+            encoding="utf-8"
+        ).split("---", 2)[2]
+        assert all(contract in body for contract in routing_contracts), skill_name
