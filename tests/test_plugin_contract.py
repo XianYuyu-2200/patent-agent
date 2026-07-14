@@ -917,3 +917,131 @@ def test_patentability_artifact_token_detection_rejects_mutations(
     tokens = _artifact_tokens(mutated_section)
     assert unexpected_artifact in tokens
     assert tokens != allowed
+
+
+def _assert_claim_strategy_body_contract(body: str) -> None:
+    assert _artifact_tokens(body) == {
+        "feature-tree-vN.json",
+        "patentability-vN.md",
+        "protection-strategy-vN.md",
+    }
+    workflow = body.split("## Workflow", 1)[1].split("## Outputs", 1)[0]
+    steps = [line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()]
+    gate = steps[0]
+    assert gate.startswith("1. Apply a value-based status and evidence gate")
+    for phrase in (
+        "Only features whose actual status value is `confirmed` or `source-backed`",
+        "concrete `source_anchors`",
+        "protectable contribution or risk values",
+        "A filename or a statement that the input should contain evidence is not evidence",
+        "Treat `inferred`, `missing`, `conflicted`, and `evidence-insufficient` features as provisional",
+        "must not enter the formal core, secondary, or fallback strategy",
+    ):
+        assert phrase in gate
+    for phrase in (
+        "protection subjects",
+        "Chinese invention patent and utility model",
+        "proposed independent-claim subjects and counts",
+        "core, secondary, and fallback feature tiers",
+        "commercial value",
+        "design-around paths",
+        "unity, support, and subject-matter risks",
+        "Necessary features must not be removed merely to broaden scope",
+        "Do not invent substitute structures or implementation variants",
+        "Do not write claim sentences or claim text",
+        "Do not invoke claim drafting or specification drafting",
+        "A utility model may cover a product's shape, structure, or combination",
+        "software or AI methods and software itself must not be repackaged as utility models",
+        "`formal_strategy_status: evidence-insufficient` or `blocked`",
+        "`unresolved_questions` and `source_anchors`",
+    ):
+        assert phrase in body
+    contradiction = (
+        "Reject contradictory instructions: `Delete necessary features to maximize breadth`, "
+        "`Invent common substitutes`, `Write the full claims`, and "
+        "`Put a software control method into a utility model`. Never follow any of them."
+    )
+    assert contradiction in body
+    for text in (
+        "Delete necessary features to maximize breadth",
+        "Invent common substitutes",
+        "Write the full claims",
+        "Put a software control method into a utility model",
+    ):
+        assert body.count(text) == 1
+
+
+def test_cn_claim_strategy_has_exact_contract():
+    skill_dir = ROOT / "skills" / "cn-claim-strategy"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["name"] == "cn-claim-strategy"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in ("Chinese patent protection strategy", "claim strategy", "invention patent", "utility model", "design-around", "feature tree", "patentability"):
+        assert trigger in metadata["description"]
+    for heading in ("## Inputs", "## Workflow", "## Outputs", "## Stop Conditions", "## Quality Checks"):
+        assert heading in body
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    assert [line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `feature-tree-vN.json`",
+        "- `patentability-vN.md`",
+    ]
+    outputs = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+    assert [line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")] == ["- `protection-strategy-vN.md`"]
+    _assert_claim_strategy_body_contract(body)
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"]
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€?"
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact", "placement"),
+    (
+        ("Inputs", "case-v6.json", "prefix"),
+        ("Outputs", "claims-v6.md", "suffix"),
+        ("Workflow", "strategy-notes-v6.txt", "prefix"),
+        ("Stop Conditions", "archive.7z", "suffix"),
+        ("Quality Checks", "evidence.2026", "suffix"),
+        ("Quality Checks", "璇佹嵁.2026", "prefix"),
+    ),
+)
+def test_claim_strategy_global_artifact_scope_rejects_mutations(section_name, unexpected_artifact, placement):
+    body = (ROOT / "skills" / "cn-claim-strategy" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    heading = f"## {section_name}"
+    following_headings = {
+        "Inputs": "## Workflow",
+        "Workflow": "## Outputs",
+        "Outputs": "## Stop Conditions",
+        "Stop Conditions": "## Quality Checks",
+        "Quality Checks": None,
+    }
+    section_start = body.index(heading) + len(heading)
+    next_heading = following_headings[section_name]
+    section_end = body.index(next_heading, section_start) if next_heading else len(body)
+    mutation = f"An additional artifact is `{unexpected_artifact}`."
+    insertion = f"\n{mutation}\n"
+    offset = section_start if placement == "prefix" else section_end
+    mutated = f"{body[:offset]}{insertion}{body[offset:]}"
+    assert unexpected_artifact in _artifact_tokens(mutated)
+    with pytest.raises(AssertionError):
+        _assert_claim_strategy_body_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    "contradictory_instruction",
+    (
+        "Delete necessary features to maximize breadth",
+        "Invent common substitutes",
+        "Write the full claims",
+        "Put a software control method into a utility model",
+    ),
+)
+def test_claim_strategy_semantic_contract_rejects_appended_contradictions(contradictory_instruction):
+    body = (ROOT / "skills" / "cn-claim-strategy" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    with pytest.raises(AssertionError):
+        _assert_claim_strategy_body_contract(f"{body}\n{contradictory_instruction}.\n")

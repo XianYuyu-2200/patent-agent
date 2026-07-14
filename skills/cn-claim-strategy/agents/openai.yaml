@@ -1,0 +1,4 @@
+interface:
+  display_name: "中国权利要求策略"
+  short_description: "基于特征树和专利性结论规划中国发明及实用新型保护布局"
+  default_prompt: "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€?"
