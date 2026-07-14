@@ -2880,17 +2880,26 @@ def test_document_export_evidence_separates_baseline_blocked_and_ready_semantics
     assert "no DOCX generated" in blocked
     assert "application-v3.docx" not in blocked
     assert "placeholder DOCX" not in blocked
-    assert "Ready forward pending: main agent will append actual" in ready
-    assert "application-v5.docx" not in ready
-    assert "generated: true" not in ready
-    assert "verified: true" not in ready
-    assert "sha256:" not in ready
+    assert "application-v5.docx" in ready
+    assert "delivery-checklist-v5.md" in ready
+    assert "generated: true" in ready
+    assert "readable: true" in ready
+    assert "verified: true" in ready
+    assert "d982db7f34b8fd2d3465bf34e46ea9945bd43eed258b1cecd322893c9fbdcc2c" in ready
+    prompt = _scenario_section(ready, "## Prompt", "## Output (verbatim)")
+    output = _scenario_section(ready, "## Output (verbatim)", "## Independent control verification")
+    assert "d982db7f34b8fd2d3465bf34e46ea9945bd43eed258b1cecd322893c9fbdcc2c" not in prompt
+    assert "预期文件名" not in prompt
+    assert "d982db7f34b8fd2d3465bf34e46ea9945bd43eed258b1cecd322893c9fbdcc2c" in output
+    assert "output 中恰好两个文件" in output
 
 
 def test_document_export_report_has_one_coherent_forward_status():
     report = (ROOT / "task-5j-report.md").read_text(encoding="utf-8")
     assert "Blocked forward evidence is recorded" in report
-    assert "Ready forward evidence is pending from the main agent" in report
+    assert "Ready forward evidence is recorded from a real exporter execution" in report
     assert "Fresh blocked/ready forwards were not run" not in report
-    assert "This satisfies the ready recipe" not in report
+    assert "This satisfies the ready recipe" in report
     assert "abc123verified" not in report
+    assert "WinError 2" in report
+    assert "structural fallback" in report

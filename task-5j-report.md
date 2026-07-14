@@ -2,7 +2,7 @@
 
 ## Status
 
-Reviewer-contract repair is implemented and requires fresh verification below. Blocked forward evidence is recorded. Ready forward evidence is pending from the main agent, which owns the real DOCX forward and will append the actual artifact hash and render/readability evidence.
+Reviewer-contract repair and control verification are complete. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. The unavailable LibreOffice render path and the collaboration thread-limit provenance constraint are disclosed below.
 
 ## Baseline
 
@@ -30,6 +30,10 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 - `$env:PYTHONUTF8='1'; python -m pytest -q` -> `220 passed`.
 - `$env:PYTHONUTF8='1'; python C:\\Users\\xiany\\.codex\\skills\\.system\\skill-creator\\scripts\\quick_validate.py skills\\patent-document-export` -> `Skill is valid!`.
 - Strict UTF-8 decode plus replacement/mojibake scan across Skill, metadata, tracked evidence, and report -> passed for 4 files.
+- Real ready forward invoked the ignored deterministic fixture exporter -> exactly `application-v5.docx` (38,474 bytes) and `delivery-checklist-v5.md` (2,578 bytes).
+- Independent bundled-Python verifier -> valid OOXML/readable DOCX, 38 paragraphs, exact claims/specification/abstract line match, correct title/section order and claim dependencies, zero placeholders, SHA-256 `d982db7f34b8fd2d3465bf34e46ea9945bd43eed258b1cecd322893c9fbdcc2c`.
+- Canonical `render_docx.py --emit_pdf` -> unavailable external converter, `FileNotFoundError: [WinError 2]`; user-scope noninteractive LibreOffice install was unavailable, so the Documents Skill structural fallback was used and explicitly disclosed.
+- Structural fallback -> A4 210 × 297 mm, 25.4 mm margins, 12.5 mm header/footer distances, zero tables/images/drawings/text boxes/external relationships, expected paragraph styles and review footer.
 
 ## Changed files
 
@@ -41,7 +45,7 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 
 ## Self-review
 
-The Skill folder contains only `SKILL.md` and `agents/openai.yaml`; no exporter, template, or extra resources were added. This repair does not implement Task 8 exporter code and does not touch `.superpowers/sdd/task-5j-ready-fixture`. Remaining required evidence is the main-agent real ready forward transcript and its actual DOCX hash/render verification.
+The Skill folder contains only `SKILL.md` and `agents/openai.yaml`; no exporter, template, or extra resources were added. This repair does not implement Task 8 exporter code. The real exporter, template, inputs, output, and independent verifier exist only under ignored `.superpowers/sdd/task-5j-ready-fixture`, preserving Task 8 sequencing.
 
 ## Independent forward evidence
 
@@ -51,6 +55,10 @@ The tracked evidence file separates the no-Skill baseline, the independent block
 
 The blocked case had stale and version-mismatched inputs, open high review issues, no scoped current final-delivery approval, and unavailable exporter/template. The agent produced exactly one `delivery-checklist-v3.md`, with `status: blocked`, `docx_generated: false`, literal `no DOCX generated`, structured freshness/version/review/approval/exporter/template gaps, next actions, unresolved items, and anchors. It created no DOCX, PDF, ZIP, cover letter, submission form, upload, or filing. This satisfies the blocked recipe.
 
-### Ready forward status
+### Ready forward evaluation
 
-Ready forward evidence is pending from the main agent. Do not treat prompt-supplied claims about exporter success, readability, verification, or a checksum as observed evidence. The final report must replace this placeholder only with the real produced artifact identity, actual checksum, and actual DOCX/render verification results.
+The raw forward prompt gave the isolated case directory and permission to execute the designated path but did not provide expected filenames, status, verification answers, or a checksum. The Agent inspected actual v5 inputs, review and approval state, invoked the temporary deterministic exporter, and generated exactly the DOCX and checklist. The controller independently reopened the OOXML package, compared every source line, verified Chinese content/sections/claims/dependencies/no placeholders, and recomputed SHA-256 `d982db7f34b8fd2d3465bf34e46ea9945bd43eed258b1cecd322893c9fbdcc2c`. This satisfies the ready recipe. No PDF/ZIP/email/upload/filing occurred.
+
+The collaboration tree had reached its hard new-thread limit, so the executing Agent was a previously `fork_turns=none` forward-only Agent reused for a strictly isolated turn rather than a newly spawned Agent. It was forbidden to read Task 5J tests, reports, briefs, reviews, other Skills, or Git history. This provenance limitation is recorded in the tracked transcript.
+
+The canonical Documents Skill renderer could not launch LibreOffice and returned `FileNotFoundError: [WinError 2]`; a user-scope noninteractive package install was unavailable. The report therefore does not claim PNG inspection. The permitted structural fallback verified page geometry, simple paragraph-only layout, OOXML readability, source equality, fonts/styles, absence of drawings/tables/text boxes/external relationships, and footer content.
