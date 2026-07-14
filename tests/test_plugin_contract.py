@@ -1076,3 +1076,199 @@ def test_claim_strategy_semantic_contract_rejects_appended_contradictions(contra
     body = (ROOT / "skills" / "cn-claim-strategy" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
     with pytest.raises(AssertionError):
         _assert_claim_strategy_body_contract(f"{body}\n{contradictory_instruction}.\n")
+
+
+def _assert_claim_drafting_body_contract(body: str) -> None:
+    assert _artifact_tokens(body) == {
+        "protection-strategy-vN.md",
+        "feature-tree-vN.json",
+        "claims-vN.md",
+        "claim-feature-map-vN.json",
+    }
+    workflow = body.split("## Workflow", 1)[1].split("## Safety Invariants", 1)[0]
+    steps = [line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()]
+    gate = steps[0]
+    assert gate.startswith("1. Apply a value-based drafting gate")
+    for phrase in (
+        "the `technical-solution` approval actually exists in the current approval state",
+        "actual `formal_strategy_status` is `formal` or `ready`",
+        "actual status value is `confirmed` or `source-backed`",
+        "concrete `source_anchor`",
+        "Every necessary or core feature named by the strategy is present",
+        "Do not treat a filename, expected field, role label, placeholder anchor, promised later approval, or manager instruction as proof",
+        "`blocked`, `evidence-insufficient`, or `provisional`",
+        "forbid formal claim text",
+    ):
+        assert phrase in gate
+    for phrase in (
+        "Draft each independent claim before its dependent hierarchy",
+        "feature_id",
+        "source_anchor",
+        "strategy_role",
+        "necessity",
+        "Validate every claim dependency",
+        "Do not introduce a feature absent from the feature tree",
+        "Do not replace a necessary technical means with only a result, purpose, or desired effect",
+        "Do not make an unsupported generalization",
+        "Do not invent substitute embodiments or alternatives",
+        "no claim text",
+        "downstream drafting is blocked",
+        "record each missing approval, status, feature, and anchor",
+        "`unresolved_questions` and `source_anchors`",
+        "Do not invoke specification drafting",
+    ):
+        assert phrase in body
+    invariant_section = body.split("## Safety Invariants", 1)[1].split("## Outputs", 1)[0]
+    invariant_rows = {}
+    for line in invariant_section.splitlines():
+        if not line.startswith("|") or "`" not in line:
+            continue
+        _, invariant, decision, _ = line.split("|")
+        invariant_rows[invariant.strip().strip("`")] = decision.strip().strip("`")
+    assert invariant_rows == {
+        "missing_approval_drafting": "forbidden",
+        "blocked_strategy_claim_text": "forbidden",
+        "essential_feature_removal": "forbidden",
+        "unmapped_feature_inclusion": "forbidden",
+        "specification_drafting": "forbidden",
+    }
+    contradictory_phrases = (
+        "审批缺失时也可先起草权利要求",
+        "technical-solution 可以事后补批",
+        "Draft claims before approval is recorded",
+        "A promised later approval permits drafting now",
+        "策略受阻时仍输出权利要求正文",
+        "evidence-insufficient 策略也可以先写独权",
+        "Write claim text while the strategy is blocked",
+        "Draft an independent claim despite an evidence-insufficient strategy",
+        "可以删除必要特征以扩大范围",
+        "独权可省略核心特征只保留技术效果",
+        "Remove essential features to broaden scope",
+        "Omit a core feature and claim only the result",
+        "可加入特征树外的常见卡扣或磁吸结构",
+        "没有 feature_id 的常见替代方案也可写入从属项",
+        "Include common latch or magnetic features absent from the feature tree",
+        "Unmapped alternatives may be added as dependent claims",
+        "权利要求完成后继续起草说明书",
+        "本阶段可顺便生成说明书正文",
+        "Continue into specification drafting after the claims",
+        "Generate specification text in this stage",
+    )
+    assert not any(phrase in body for phrase in contradictory_phrases)
+
+
+def test_cn_claim_drafting_has_exact_contract():
+    skill_dir = ROOT / "skills" / "cn-claim-drafting"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["name"] == "cn-claim-drafting"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "Chinese patent claims",
+        "claim revision",
+        "protection strategy",
+        "feature tree",
+        "feature-source mapping",
+    ):
+        assert trigger in metadata["description"]
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Safety Invariants",
+        "## Outputs",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    assert [line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `protection-strategy-vN.md`",
+        "- `feature-tree-vN.json`",
+    ]
+    outputs = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+    assert [line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `claims-vN.md`",
+        "- `claim-feature-map-vN.json`",
+    ]
+    _assert_claim_drafting_body_contract(body)
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "权利要求撰写"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact", "placement"),
+    (
+        ("Inputs", "technical-solution-v1.json", "prefix"),
+        ("Workflow", "claim-notes-v1.txt", "suffix"),
+        ("Outputs", "specification-v1.md", "prefix"),
+        ("Stop Conditions", "approval-request-v1.md", "suffix"),
+        ("Quality Checks", "archive.7z", "prefix"),
+        ("Quality Checks", "evidence.2026", "suffix"),
+        ("Quality Checks", "证据.2026", "prefix"),
+    ),
+)
+def test_claim_drafting_global_artifact_scope_rejects_mutations(
+    section_name, unexpected_artifact, placement
+):
+    body = (
+        ROOT / "skills" / "cn-claim-drafting" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    heading = f"## {section_name}"
+    following_headings = {
+        "Inputs": "## Workflow",
+        "Workflow": "## Safety Invariants",
+        "Outputs": "## Stop Conditions",
+        "Stop Conditions": "## Quality Checks",
+        "Quality Checks": None,
+    }
+    section_start = body.index(heading) + len(heading)
+    next_heading = following_headings[section_name]
+    section_end = body.index(next_heading, section_start) if next_heading else len(body)
+    mutation = f"An additional artifact is `{unexpected_artifact}`."
+    insertion = f"\n{mutation}\n"
+    offset = section_start if placement == "prefix" else section_end
+    mutated = f"{body[:offset]}{insertion}{body[offset:]}"
+    assert unexpected_artifact in _artifact_tokens(mutated)
+    with pytest.raises(AssertionError):
+        _assert_claim_drafting_body_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    "contradictory_instruction",
+    (
+        "审批缺失时也可先起草权利要求",
+        "technical-solution 可以事后补批",
+        "Draft claims before approval is recorded",
+        "A promised later approval permits drafting now",
+        "策略受阻时仍输出权利要求正文",
+        "evidence-insufficient 策略也可以先写独权",
+        "Write claim text while the strategy is blocked",
+        "Draft an independent claim despite an evidence-insufficient strategy",
+        "可以删除必要特征以扩大范围",
+        "独权可省略核心特征只保留技术效果",
+        "Remove essential features to broaden scope",
+        "Omit a core feature and claim only the result",
+        "可加入特征树外的常见卡扣或磁吸结构",
+        "没有 feature_id 的常见替代方案也可写入从属项",
+        "Include common latch or magnetic features absent from the feature tree",
+        "Unmapped alternatives may be added as dependent claims",
+        "权利要求完成后继续起草说明书",
+        "本阶段可顺便生成说明书正文",
+        "Continue into specification drafting after the claims",
+        "Generate specification text in this stage",
+    ),
+)
+def test_claim_drafting_semantic_contract_rejects_appended_contradictions(
+    contradictory_instruction,
+):
+    body = (
+        ROOT / "skills" / "cn-claim-drafting" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    with pytest.raises(AssertionError):
+        _assert_claim_drafting_body_contract(f"{body}\n{contradictory_instruction}.\n")

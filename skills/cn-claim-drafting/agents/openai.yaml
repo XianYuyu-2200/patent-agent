@@ -1,0 +1,4 @@
+interface:
+  display_name: "权利要求撰写"
+  short_description: "依据获批策略和特征来源起草并映射中国专利权利要求"
+  default_prompt: "请处理当前案件并生成本阶段规定的结构化产物。"
