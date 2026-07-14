@@ -2,7 +2,7 @@
 
 ## Status
 
-Reviewer-contract repair and control verification are complete. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. The unavailable LibreOffice render path and the collaboration thread-limit provenance constraint are disclosed below.
+Reviewer-contract repair and available control verification have passed. Blocked forward evidence is recorded. Ready forward evidence is recorded from a real exporter execution, with independently recomputed DOCX content and hash checks. Final Task 5J approval remains pending because the binding fresh-new-Agent forward specification could not be satisfied after the collaboration tree reached its hard thread limit; the reused forward-only Agent provenance and unavailable LibreOffice render path are disclosed below.
 
 ## Baseline
 
@@ -25,15 +25,18 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 ## Commands and results
 
 - Reviewer RED: focused `document_export` selection failed with 19 failures: 16 semantic bypasses plus UTF-8 sentinel, forward-shape, and report-consistency tests.
-- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q -k "document_export"` -> `46 passed, 161 deselected`.
-- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q` -> `207 passed`.
-- `$env:PYTHONUTF8='1'; python -m pytest -q` -> `220 passed`.
+- Reviewer RED round 2: the six required word-order mutations were all accepted (`6 failed, 26 passed, 181 deselected`) before the helper fix.
+- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q -k "document_export"` -> `52 passed, 161 deselected`.
+- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q` -> `213 passed`.
+- `$env:PYTHONUTF8='1'; python -m pytest -q` -> `226 passed`.
 - `$env:PYTHONUTF8='1'; python C:\\Users\\xiany\\.codex\\skills\\.system\\skill-creator\\scripts\\quick_validate.py skills\\patent-document-export` -> `Skill is valid!`.
 - Strict UTF-8 decode plus replacement/mojibake scan across Skill, metadata, tracked evidence, and report -> passed for 4 files.
 - Real ready forward invoked the ignored deterministic fixture exporter -> exactly `application-v5.docx` (38,474 bytes) and `delivery-checklist-v5.md` (2,578 bytes).
 - Independent bundled-Python verifier -> valid OOXML/readable DOCX, 38 paragraphs, exact claims/specification/abstract line match, correct title/section order and claim dependencies, zero placeholders, SHA-256 `d982db7f34b8fd2d3465bf34e46ea9945bd43eed258b1cecd322893c9fbdcc2c`.
 - Canonical `render_docx.py --emit_pdf` -> unavailable external converter, `FileNotFoundError: [WinError 2]`; user-scope noninteractive LibreOffice install was unavailable, so the Documents Skill structural fallback was used and explicitly disclosed.
 - Structural fallback -> A4 210 × 297 mm, 25.4 mm margins, 12.5 mm header/footer distances, zero tables/images/drawings/text boxes/external relationships, expected paragraph styles and review footer.
+- `git diff --check` -> no whitespace errors; only normal LF/CRLF conversion warnings.
+- Post-commit `git status --short` -> clean status.
 
 ## Changed files
 
@@ -49,7 +52,7 @@ The Skill folder contains only `SKILL.md` and `agents/openai.yaml`; no exporter,
 
 ## Independent forward evidence
 
-The tracked evidence file separates the no-Skill baseline, the independent blocked forward, and an explicit ready-forward placeholder. It contains no fabricated ready artifact result.
+The complete ready-forward prompt, verbatim output, control verification, and evaluation are tracked in `tests/skill_scenarios/patent-document-export-baseline.md`, after the separately delimited no-Skill baseline and blocked-forward transcript. The tracked evidence contains the observed real exporter results and explicitly discloses that the Agent was reused because a fresh thread could not be spawned.
 
 ### Blocked forward evaluation
 

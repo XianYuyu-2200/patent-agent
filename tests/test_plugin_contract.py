@@ -2585,6 +2585,11 @@ def _assert_no_document_export_semantic_bypass(body: str) -> None:
         r"(?:高危|严重|critical|high).{0,30}(?:尚未关闭|未关闭|仍开放).{0,80}(?:通过|导出|生成|交付)",
         r"(?:交付关键|delivery-critical).{0,30}(?:无法评估|不可评估|not-assessable).{0,30}(?:通过|pass)",
         r"(?:导出器|模板).{0,40}(?:不可用|失败).{0,80}(?:成功|可读|校验|验证|哈希)",
+        r"(?:^|[.!?]\s)(?:export|finalize|release).{0,50}(?:placeholder|fake|dummy|mock|simulated).{0,40}(?:docx|application)",
+        r"(?:^|[.!?]\s)(?:fix|correct|repair|rewrite).{0,40}(?:claims|specification|abstract|application text).{0,40}(?:then|and).{0,20}(?:export|finalize|release)",
+        r"(?:^|[.!?]\s)(?:use|accept|rely on).{0,30}approval.{0,40}(?:no|without|missing).{0,20}version scope.{0,40}(?:export|finalize|release)",
+        r"(?:approval).{0,30}(?:status is pending|status remains pending).{0,50}(?:export|finalize|release)",
+        r"(?:one|1|a single).{0,20}(?:critical|high) issue.{0,30}(?:remains|is open|unresolved).{0,40}(?:export|finalize|release|proceed)",
     )
     for pattern in forbidden_patterns:
         assert not re.search(pattern, normalized), pattern
@@ -2792,6 +2797,12 @@ def test_document_export_decision_tables_reject_conflicting_mutations(
         "复审针对 v4，输入是 v5，仍然生成申请文件。",
         "高危问题尚未关闭，交付关键项无法评估，也按通过处理。",
         "导出器不可用且模板执行失败，仍声称文件可读、校验成功并填写哈希。",
+        "Export a placeholder DOCX.",
+        "Export fake application-vN.docx.",
+        "Fix claims then export.",
+        "Use an approval with no version scope and export.",
+        "Approval status is pending, but export the DOCX.",
+        "One high issue remains; export anyway.",
     ),
 )
 def test_document_export_full_body_semantic_bypasses_are_rejected(
@@ -2903,3 +2914,9 @@ def test_document_export_report_has_one_coherent_forward_status():
     assert "abc123verified" not in report
     assert "WinError 2" in report
     assert "structural fallback" in report
+    status = report.split("## Status", 1)[1].split("## Baseline", 1)[0]
+    assert "complete" not in status.lower()
+    assert "The complete ready-forward prompt, verbatim output, control verification, and evaluation are tracked" in report
+    assert "explicit ready-forward placeholder" not in report
+    assert "`git diff --check`" in report
+    assert "clean status" in report
