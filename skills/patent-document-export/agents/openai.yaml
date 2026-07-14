@@ -1,0 +1,4 @@
+interface:
+  display_name: "专利文件导出"
+  short_description: "校验批准、版本和质量门后导出中国专利DOCX与交付清单"
+  default_prompt: "请处理当前案件并生成本阶段规定的结构化产物。"
