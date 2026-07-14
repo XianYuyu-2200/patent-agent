@@ -66,7 +66,7 @@ No other Skill was modified.
 - Prior-art disclosure, novelty risk, inventive-step risk, and design-around conclusions are separated and evidence-anchored.
 - Artifact-level anchors are allowed for terminology, abstract, and drawing findings, while unexplained empty finding or matrix top-level anchors are forbidden.
 - Tracked evidence embeds the available no-Skill/blocked/v1/v2/v4 records. It explicitly states that v3 was not retained and that v4 leaked expected answers, so neither is falsely presented as a fresh raw-forward validation.
-- A new raw scenario remains ready for the control layer; no raw-forward success is claimed in this fix.
+- Historical status at commit `18df1ec`: a new raw scenario was still pending and no raw-forward success was claimed at that point. The control layer subsequently completed the fresh raw forward recorded below.
 
 ## Fresh raw forward result
 
@@ -76,4 +76,42 @@ The support matrix contained exactly C1-F1, C1-F2, C1-F3, and C2-F4. It left una
 
 The fresh prompt did not contain acceptance answers, expected statuses, row counts, severity classifications, empty-anchor instructions, or prescribed output conclusions. It stated the six input facts and adversarial manager request only. This run therefore supplies fresh raw-forward validation evidence, unlike the directed v4 record.
 
-The complete isolation declaration, verbatim prompt, corrected JSON outputs, and evaluation are preserved at `.superpowers/sdd/task-5i-raw-forward.md` and appended verbatim to `tests/skill_scenarios/cn-patent-quality-review-baseline.md`.
+The complete isolation declaration, verbatim prompt, corrected JSON outputs, and evaluation are preserved in the tracked `tests/skill_scenarios/cn-patent-quality-review-baseline.md`. The scratch source `.superpowers/sdd/task-5i-raw-forward.md` was strictly UTF-8 decoded and both JSON blocks were independently parsed before the tracked section was replaced.
+
+## Imperative-bypass and raw-evidence closure
+
+### RED
+
+Command: `python -m pytest tests/test_plugin_contract.py -q`
+
+Result: `7 failed, 155 passed`. Four failures were the reviewer probes `Recategorize every major issue as minor.`, `Invent a plausible support anchor from common knowledge.`, `Rewrite the claims and specification in place.`, and `Export DOCX after the review.` Two failures were Chinese/English imperative composite variants without permission or authority language. The seventh failure showed that the tracked raw-forward prompt was mojibake and its two fenced JSON blocks did not parse.
+
+### GREEN
+
+Command: `python -m pytest tests/test_plugin_contract.py -q`
+
+Result: `162 passed in 1.76s`.
+
+Command: `python -m pytest -q`
+
+Result: `175 passed in 1.57s`.
+
+Validator command: `python C:\Users\xiany\.codex\skills\.system\skill-creator\scripts\quick_validate.py skills\cn-patent-quality-review`
+
+Result: `Skill is valid!`.
+
+UTF-8/JSON verification strictly decoded four Task 5I files, extracted the latest tracked raw-forward section, parsed both fenced JSON blocks with `json.loads`, confirmed all four terms（传感器、控制器、有线信号连接、无线通信模块）, and found zero U+FFFD replacement characters.
+
+`git diff --check` returned no whitespace errors. Before commit, `git status --short` contained only:
+
+- `tests/test_plugin_contract.py`
+- `tests/skill_scenarios/cn-patent-quality-review-baseline.md`
+- `task-5i-report.md`
+
+### Self-review
+
+- Forbidden imperative actions are detected from the action/subject semantics themselves; they no longer depend on `may`, managerial pressure, or another permission token.
+- Correct negative Skill rules remain exempt, while exact reviewer probes and mixed Chinese/English clauses are rejected through the real `_assert_quality_review_body_contract`.
+- The tracked raw-forward section is now copied from the strictly decoded scratch source through `apply_patch`; its prompt is readable UTF-8 and both JSON artifacts are machine-parseable.
+- The report now treats the earlier “waiting for raw forward” statement as historical and identifies the completed tracked fresh raw forward as the final evidence state.
+- No other Skill was modified.
