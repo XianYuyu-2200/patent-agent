@@ -60,3 +60,47 @@ Implemented only the `cn-claim-drafting` Skill, its contract/mutation tests, and
 ## Submission
 
 Changes are ready for one Codex-identity commit.
+
+## Review repair (ready behavior and strategy authorization)
+
+### RED
+
+- Added a machine-parsed `Drafting Eligibility Contract` test before changing the Skill. It requires five value rules, including the independent `strategy_selection` authorization condition.
+- Added generic duplicate-key mutation probes for future/oral/promised/back-signed approval bypasses and for adding a source-backed tree feature that the current strategy did not select.
+- RED command: `python -m pytest tests/test_plugin_contract.py -k claim_drafting -v`.
+- Initial repair RED result: `28 passed, 4 failed`; the four new authorization mutations failed to raise and the exact contract failed because the new eligibility section was absent.
+- After correcting only the test parser's table-cell backtick handling, the focused suite still showed the intended four mutation failures (`28 passed, 4 failed`).
+
+### Minimal GREEN change
+
+- Added a structured `## Drafting Eligibility Contract` table to the Skill with required current approval, ready strategy status, explicit current-strategy selection/authorization, feature-tree qualification, and necessary-feature rules.
+- Clarified that Feature-tree status and anchor are necessary but not sufficient; every claim feature requires both strategy selection/authorization and feature-tree qualification.
+- Applied the same dual gate to ready workflow derivation, dependent additions, mapping, stop conditions, and quality checks.
+- Preserved the exact two inputs, exact two outputs, and all five existing Safety Invariants.
+- Repair GREEN command: `python -m pytest tests/test_plugin_contract.py -k claim_drafting -q`.
+- Repair GREEN result: `32 passed, 56 deselected`.
+
+### Ready forward evidence
+
+- Added a fresh ready-state forward transcript to `tests/skill_scenarios/cn-claim-drafting-baseline.md`.
+- Scenario supplied current approved `technical-solution`, `formal_strategy_status: ready`, available downstream, authorized F1 independent/core and F2 dependent features, plus F3 as a source-backed/anchored feature-tree feature deliberately omitted from strategy selection.
+- The fresh agent produced exactly `claims-v2.md` and `claim-feature-map-v2.json`.
+- It drafted one independent claim followed by one valid dependent claim, mapped every explicit/inherited occurrence with `feature_id`, `source_anchor`, `strategy_role`, and `necessity`, and recorded strategy selection/authorization for each occurrence.
+- F3 was explicitly excluded despite its source-backed feature-tree status and anchor; the map records that current strategy selection/authorization is false.
+- The ready transcript also confirms rejection of result-only wording, unsupported generalization, invented relationships, and substitute embodiments.
+
+### Repair self-audit
+
+- No other Skill was changed.
+- No additional production artifact or output was added; the Skill still declares only the two required inputs and two required outputs.
+- The blocked forward evidence remains intact and still records zero claim mappings and `no claim text`.
+- The ready forward evidence now exercises the previously missing positive path and the exact strategy-selection boundary.
+
+### Repair final verification
+
+- Focused claim-drafting contract: `32 passed, 56 deselected`.
+- Complete `tests/test_plugin_contract.py`: `88 passed`.
+- Full test suite: `101 passed`.
+- Official validator with `PYTHONUTF8=1`: `Skill is valid!`.
+- Strict UTF-8 decoding passed for the Skill, metadata, complete blocked/ready evidence, and report.
+- `git diff --check` returned exit 0; only the repository's existing LF-to-CRLF working-copy warnings were emitted.

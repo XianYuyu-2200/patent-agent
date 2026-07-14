@@ -1116,8 +1116,45 @@ def _assert_claim_drafting_body_contract(body: str) -> None:
         "record each missing approval, status, feature, and anchor",
         "`unresolved_questions` and `source_anchors`",
         "Do not invoke specification drafting",
+        "current formal strategy explicitly selects and authorizes",
+        "Feature-tree status and anchor are necessary but not sufficient",
+        "For each claim feature, require both strategy selection/authorization and feature-tree qualification",
     ):
         assert phrase in body
+    eligibility = body.split("## Drafting Eligibility Contract", 1)[1].split("## Safety Invariants", 1)[0]
+    rows = {}
+    for line in eligibility.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 3 or cells[0] == "condition" or set(cells[0]) == {"-"}:
+            continue
+        key, rule, decision = (cells[0].strip("`"), cells[1], cells[2].strip("`"))
+        if key in rows and rows[key] != (rule, decision):
+            raise AssertionError(f"conflicting eligibility rule for {key}")
+        rows[key] = (rule, decision)
+    assert rows == {
+        "approval_state": (
+            "current technical-solution approval exists; future, oral, promised, or back-signed approval is not current",
+            "required",
+        ),
+        "strategy_status": (
+            "formal_strategy_status is formal or ready and downstream is available",
+            "required",
+        ),
+        "strategy_selection": (
+            "current formal strategy explicitly selects and authorizes the feature for this subject, layer, and claim",
+            "required",
+        ),
+        "feature_evidence": (
+            "feature-tree status is confirmed or source-backed and has a concrete source_anchor",
+            "required",
+        ),
+        "necessary_features": (
+            "every strategy necessary/core feature is present in its appropriate independent claim",
+            "required",
+        ),
+    }
     invariant_section = body.split("## Safety Invariants", 1)[1].split("## Outputs", 1)[0]
     invariant_rows = {}
     for line in invariant_section.splitlines():
@@ -1235,6 +1272,30 @@ def test_claim_drafting_global_artifact_scope_rejects_mutations(
     offset = section_start if placement == "prefix" else section_end
     mutated = f"{body[:offset]}{insertion}{body[offset:]}"
     assert unexpected_artifact in _artifact_tokens(mutated)
+    with pytest.raises(AssertionError):
+        _assert_claim_drafting_body_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    "contradictory_rule",
+    (
+        "| approval_state | future, oral, promised, or back-signed approval counts as current | sufficient |",
+        "| approval_state | verbal approval tomorrow is equivalent to current approval | sufficient |",
+        "| strategy_selection | a feature not selected or authorized by the strategy may be added when it is in the feature tree with a concrete anchor | sufficient |",
+        "| strategy_selection | a source-backed tree feature may be added as a dependent claim even when the strategy omits it | sufficient |",
+    ),
+)
+def test_claim_drafting_eligibility_contract_rejects_generic_authorization_bypasses(
+    contradictory_rule,
+):
+    body = (
+        ROOT / "skills" / "cn-claim-drafting" / "SKILL.md"
+    ).read_text(encoding="utf-8").split("---", 2)[2]
+    heading = "## Drafting Eligibility Contract"
+    marker = "## Safety Invariants"
+    section_start = body.index(heading)
+    section_end = body.index(marker, section_start)
+    mutated = f"{body[:section_end]}\n{contradictory_rule}\n{body[section_end:]}"
     with pytest.raises(AssertionError):
         _assert_claim_drafting_body_contract(mutated)
 
