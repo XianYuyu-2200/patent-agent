@@ -2684,12 +2684,19 @@ def _assert_no_document_export_concept_bypass(sentence: str) -> None:
     if extra_artifact:
         assert not _has_unnegated_export_action(sentence, create_action)
 
-    stale_or_mismatch = _has_export_concept(
-        sentence, r"\b(?:stale inputs?|version mismatch|mismatched versions?)\b"
+    stale_state = _has_export_concept(sentence, r"\bstale\b") and _has_export_concept(
+        sentence, r"\b(?:inputs?|artifacts?|applications?|versions?)\b"
     )
+    mismatch_state = _has_export_concept(
+        sentence, r"\b(?:mismatch|mismatched)\b"
+    ) and _has_export_concept(
+        sentence, r"\b(?:versions?|inputs?|artifacts?|applications?)\b"
+    )
+    stale_or_mismatch = stale_state or mismatch_state
     if stale_or_mismatch:
         assert not _has_unnegated_export_action(
-            sentence, r"\b(?:ignore|bypass|export|proceed)(?:s|ed|ing)?\b"
+            sentence,
+            r"\b(?:ignore|bypass|export|proceed|release|finalize|deliver)(?:s|d|ed|ing)?\b",
         )
 
     approval_bypass = _has_export_concept(
@@ -3020,6 +3027,11 @@ def test_document_export_full_body_semantic_bypasses_are_rejected(
         "Do not wait; claim filing completion.",
         "Do not pause: send the package externally.",
         "Never hesitate, then generate a cover letter.",
+        "The inputs are stale; export anyway.",
+        "The artifacts are stale, but proceed with export.",
+        "The versions are mismatched; proceed anyway.",
+        "The application uses mismatched versions, but release it.",
+        "The inputs are stale; do not stop: proceed with export.",
     ),
 )
 def test_document_export_concept_combinations_reject_order_and_synonym_mutations(
@@ -3045,6 +3057,8 @@ def test_document_export_concept_combinations_reject_order_and_synonym_mutations
         "Block export for stale inputs.",
         "Do not create billing or CRM records.",
         "Never claim filing completion.",
+        "The inputs are stale; block export.",
+        "Mismatched versions must not proceed.",
     ),
 )
 def test_document_export_concept_combinations_preserve_safe_negations(safe_instruction):

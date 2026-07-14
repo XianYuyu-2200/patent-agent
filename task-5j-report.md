@@ -29,10 +29,11 @@ A fresh no-Skill baseline was run by an isolated `fork_turns=none` agent and is 
 - Reviewer RED round 3: sentence-level concept probes produced `11 failed, 9 passed, 213 deselected`—ten unsafe order/synonym combinations escaped and one safe exporter-unavailable stop sentence was falsely rejected by the legacy regex. A separate explicit probe also proved `No approval exists; export anyway.` was initially accepted before absence-of-approval was added as an invalid-approval concept.
 - Negation-scope RED: both `Do not block export; deliver a placeholder DOCX.` and `The exporter is unavailable; do not stop, mark the DOCX readable.` escaped until negation scope was limited at clause delimiters and coordinated negation was prevented from crossing semicolons/contrast markers.
 - Reviewer RED round 4: all ten new unrelated-negation/unsafe-tail probes escaped, including the eight required CNIPA/PDF/ZIP/stale/version/manager-approval/CRM/filing-completion cases plus colon and `then` boundary variants. The fix removed whole-sentence legacy skipping, added clause boundaries and action-local negation, and added concept combinations for external delivery, extra formats, stale/version bypass, invalid approval use, billing/CRM records, and filing-completion claims.
+- Reviewer RED round 5: all five targeted stale/mismatch state probes escaped (`5 failed, 40 passed, 213 deselected`). The fix now combines `stale` with input/artifact/application/version objects and `mismatch`/`mismatched` with version/input/artifact/application objects without depending on word order, then applies the existing action-local export/proceed/release/finalize/deliver gate.
 - The helper now splits and normalizes sentences, evaluates order-independent dangerous concept combinations, and recognizes action-scoped or coordinated safety negation; legacy regexes remain supplemental.
-- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q -k "document_export"` -> `90 passed, 161 deselected`.
-- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q` -> `251 passed`.
-- `$env:PYTHONUTF8='1'; python -m pytest -q` -> `264 passed`.
+- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q -k "document_export"` -> `97 passed, 161 deselected`.
+- `$env:PYTHONUTF8='1'; python -m pytest tests\\test_plugin_contract.py -q` -> `258 passed`.
+- `$env:PYTHONUTF8='1'; python -m pytest -q` -> `271 passed`.
 - `$env:PYTHONUTF8='1'; python C:\\Users\\xiany\\.codex\\skills\\.system\\skill-creator\\scripts\\quick_validate.py skills\\patent-document-export` -> `Skill is valid!`.
 - Strict UTF-8 decode plus replacement/mojibake scan across Skill, metadata, tracked evidence, and report -> passed for 4 files.
 - Real ready forward invoked the ignored deterministic fixture exporter -> exactly `application-v5.docx` (38,474 bytes) and `delivery-checklist-v5.md` (2,578 bytes).
