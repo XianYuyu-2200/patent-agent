@@ -2559,11 +2559,22 @@ def _export_sentences(body: str) -> list[str]:
     ]
 
 
+def _export_clauses(sentence: str) -> list[str]:
+    boundary = (
+        r"\s*(?:[;:；：]|"
+        r",\s*(?=(?:but|however|yet|although|despite|anyway|still|then|so|therefore)\b)|"
+        r"\b(?:but|however|yet|although|despite|anyway|still|then|so|therefore)\b)\s*"
+    )
+    return [clause.strip(" ,") for clause in re.split(boundary, sentence) if clause.strip(" ,")]
+
+
 def _has_export_concept(sentence: str, pattern: str) -> bool:
     return re.search(pattern, sentence) is not None
 
 
 def _has_unnegated_export_action(sentence: str, pattern: str) -> bool:
+    if re.search(r"\|\s*(?:forbidden|blocked|not allowed)\s*\|?\s*$", sentence):
+        return False
     negation = re.compile(
         r"(?:never|do not|don't|must not|may not|cannot|can't|refuse(?:s|d)? to|"
         r"reject(?:s|ed)?|block(?:s|ed)?|stop(?:s|ped)?|forbidden(?: to)?|"
@@ -2572,25 +2583,41 @@ def _has_unnegated_export_action(sentence: str, pattern: str) -> bool:
     for match in re.finditer(pattern, sentence):
         prefix = sentence[max(0, match.start() - 70) : match.start()]
         full_prefix = sentence[: match.start()]
-        local_prefix = re.split(r"[;:,]", prefix)[-1]
+        clause_prefix = re.split(
+            r"[;:；：]|\b(?:but|however|yet|although|despite|anyway|still|then|so|therefore)\b",
+            full_prefix,
+        )[-1].strip(" ,")
+        local_prefix = re.split(
+            r"[;:,；：]|\b(?:but|however|yet|although|despite|anyway|still|then|so|therefore)\b",
+            prefix,
+        )[-1]
         suffix = sentence[match.end() : match.end() + 20]
         coordinated_negation = re.match(
-            r"^(?:never|do not|don't|must not|may not|cannot|can't)\b", full_prefix
+            r"^(?:never|do not|don't|must not|may not|cannot|can't)\b", clause_prefix
         ) and not re.search(
-            r"[;；]|\b(?:but|however|although|despite|anyway|still)\b", full_prefix
+            r"^(?:never|do not|don't|must not|may not|cannot|can't)\s+"
+            r"(?:wait|delay|hesitate|ask|pause|stop|block)\b",
+            clause_prefix,
         )
+        chained_negation = re.search(
+            r"\b(?:never|do not|don't|must not|may not|cannot|can't)\b.{0,55}\band then\s*$",
+            full_prefix,
+        ) is not None
+        coordinated_no = re.search(
+            r"\bno\s+(?:extra artifact|filing|submission|email|upload|external action|"
+            r"pdf|zip|billing|crm records?)\b",
+            clause_prefix,
+        ) is not None
         false_status = re.match(r"\s*(?::|=)?\s*false\b", suffix) is not None
-        if not negation.search(local_prefix) and not coordinated_negation and not false_status:
+        if (
+            not negation.search(local_prefix)
+            and not coordinated_negation
+            and not chained_negation
+            and not coordinated_no
+            and not false_status
+        ):
             return True
     return False
-
-
-def _sentence_has_explicit_export_block(sentence: str) -> bool:
-    return _has_export_concept(
-        sentence,
-        r"\b(?:never|do not|don't|must not|may not|cannot|can't|refuse|reject|"
-        r"block|stop|forbidden|not allowed)\b",
-    )
 
 
 def _assert_no_document_export_concept_bypass(sentence: str) -> None:
@@ -2599,6 +2626,8 @@ def _assert_no_document_export_concept_bypass(sentence: str) -> None:
     edit_action = r"\b(?:edit(?:s|ed|ing)?|fix(?:es|ed|ing)?|rewrit(?:e|es|ten|ing)|repair(?:s|ed|ing)?|correct(?:s|ed|ing)?)\b"
     pass_action = r"\b(?:pass|ready|export|finalize|release|deliver|proceed)(?:es|s|ed|ing)?\b"
     success_action = r"\b(?:success|succeeded|readable|verified|verification|hash|sha256|generated)\b"
+    external_action = r"\b(?:submit|upload|email|send|deliver)(?:s|ted|ed|ing)?\b"
+    create_action = r"\b(?:create|generate|make|produce|export|deliver|email|upload)(?:s|d|ed|ing)?\b"
 
     fake_docx = _has_export_concept(sentence, r"\b(?:placeholder|fake|dummy|mock|simulated|empty)\b") and _has_export_concept(
         sentence, r"\b(?:docx|application(?: v?n)?(?:\.docx)?)\b"
@@ -2642,6 +2671,48 @@ def _assert_no_document_export_concept_bypass(sentence: str) -> None:
     )
     if failed_export_path:
         assert not _has_unnegated_export_action(sentence, success_action)
+
+    external_delivery = _has_export_concept(
+        sentence, r"\b(?:cnipa|client|customer|external|externally|package)\b"
+    )
+    if external_delivery:
+        assert not _has_unnegated_export_action(sentence, external_action)
+
+    extra_artifact = _has_export_concept(
+        sentence, r"\b(?:pdf|zip|cover letter|submission form)\b"
+    )
+    if extra_artifact:
+        assert not _has_unnegated_export_action(sentence, create_action)
+
+    stale_or_mismatch = _has_export_concept(
+        sentence, r"\b(?:stale inputs?|version mismatch|mismatched versions?)\b"
+    )
+    if stale_or_mismatch:
+        assert not _has_unnegated_export_action(
+            sentence, r"\b(?:ignore|bypass|export|proceed)(?:s|ed|ing)?\b"
+        )
+
+    approval_bypass = _has_export_concept(
+        sentence, r"\b(?:manager|managerial|oral|future|pending|unscoped) approval\b"
+    )
+    if approval_bypass:
+        assert not _has_unnegated_export_action(
+            sentence, r"\b(?:use|accept|export|finalize|release|proceed)(?:s|d|ed|ing)?\b"
+        )
+
+    billing_record = _has_export_concept(
+        sentence, r"\b(?:invoice|billing|crm record|crm records)\b"
+    )
+    if billing_record:
+        assert not _has_unnegated_export_action(
+            sentence, r"\b(?:create|generate|make|produce)(?:s|d|ed|ing)?\b"
+        )
+
+    filing_completion = _has_export_concept(sentence, r"\bfiling completion\b")
+    if filing_completion:
+        assert not _has_unnegated_export_action(
+            sentence, r"\b(?:claim|report|state|record)(?:s|ed|ing)?\b"
+        )
 
 
 def _assert_no_document_export_semantic_bypass(body: str) -> None:
@@ -2687,11 +2758,18 @@ def _assert_no_document_export_semantic_bypass(body: str) -> None:
         r"(?:approval).{0,30}(?:status is pending|status remains pending).{0,50}(?:export|finalize|release)",
         r"(?:one|1|a single).{0,20}(?:critical|high) issue.{0,30}(?:remains|is open|unresolved).{0,40}(?:export|finalize|release|proceed)",
     )
+    legacy_action = (
+        r"\b(?:create|generate|make|produce|export|finalize|release|deliver|send|"
+        r"submit|upload|email|present|proceed|ignore|bypass|use|claim|report|mark)"
+        r"(?:s|d|ed|ing)?\b"
+    )
     for sentence in sentences:
-        if _sentence_has_explicit_export_block(sentence):
-            continue
         for pattern in forbidden_patterns:
-            assert not re.search(pattern, sentence), pattern
+            if re.search(pattern, sentence):
+                if not re.search(legacy_action, sentence) or _has_unnegated_export_action(
+                    sentence, legacy_action
+                ):
+                    raise AssertionError(pattern)
 
 
 def _assert_document_export_body_contract(body: str) -> None:
@@ -2932,6 +3010,16 @@ def test_document_export_full_body_semantic_bypasses_are_rejected(
         "No approval exists; export anyway.",
         "Do not block export; deliver a placeholder DOCX.",
         "The exporter is unavailable; do not stop, mark the DOCX readable.",
+        "Do not wait; submit the package to CNIPA.",
+        "Do not delay; create a PDF and upload it to the client.",
+        "Never hesitate; email the ZIP package externally.",
+        "Do not wait; ignore the stale inputs and export.",
+        "Never hesitate; bypass the version mismatch and proceed.",
+        "Do not delay; use the manager approval and export.",
+        "Do not ask questions; create an invoice and CRM record.",
+        "Do not wait; claim filing completion.",
+        "Do not pause: send the package externally.",
+        "Never hesitate, then generate a cover letter.",
     ),
 )
 def test_document_export_concept_combinations_reject_order_and_synonym_mutations(
@@ -2952,6 +3040,11 @@ def test_document_export_concept_combinations_reject_order_and_synonym_mutations
         "The exporter is unavailable, so stop and do not mark the DOCX readable.",
         "No approval exists; therefore reject export.",
         "An approval without version scope is forbidden and must not release the package.",
+        "Do not submit to CNIPA.",
+        "Do not create PDF or ZIP.",
+        "Block export for stale inputs.",
+        "Do not create billing or CRM records.",
+        "Never claim filing completion.",
     ),
 )
 def test_document_export_concept_combinations_preserve_safe_negations(safe_instruction):
