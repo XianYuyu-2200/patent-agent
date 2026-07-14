@@ -124,3 +124,12 @@ Skill is valid!
 ```
 
 Strict UTF-8 decoding succeeded for all changed/reported files. `git diff --check` exited 0. No other Skill or production artifact was changed.
+
+## Control-layer independent forward resolution
+
+The control layer independently reran both scenarios after commit `73e3010` using fresh agents constrained to read only `cn-specification-drafting/SKILL.md`:
+
+- `task-5h-ready-forward-v2.md`: **ready**. It emitted exactly the three declared artifacts; included complete specification sections, an abstract within 300 Chinese characters, one supported system-relation figure, and zero unsupported numerals. TF-06/TF-07/TF-08 and out-of-stage quality-review/DOCX requests were excluded and recorded.
+- `task-5h-blocked-forward-v2.md`: **blocked**. It emitted exactly the three declared artifacts; specification and abstract explicitly contain the required no-text statements; drawing plan has zero figures and zero numerals; fatal approval, stale-claims, missing-anchor, inferred, and conflicted support gaps are recorded.
+
+The full verbatim independent transcripts were appended to `tests/skill_scenarios/cn-specification-drafting-baseline.md` without replacing the baseline, first ready failure, or provisional transcript history. The previous corrected-forward concern is resolved.
