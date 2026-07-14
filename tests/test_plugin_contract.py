@@ -1333,3 +1333,189 @@ def test_claim_drafting_semantic_contract_rejects_appended_contradictions(
     ).read_text(encoding="utf-8").split("---", 2)[2]
     with pytest.raises(AssertionError):
         _assert_claim_drafting_body_contract(f"{body}\n{contradictory_instruction}.\n")
+
+
+def _assert_specification_drafting_body_contract(body: str) -> None:
+    assert _artifact_tokens(body) == {
+        "claims-vN.md",
+        "claim-feature-map-vN.json",
+        "technical-facts-vN.json",
+        "specification-vN.md",
+        "abstract-vN.md",
+        "drawing-plan-vN.json",
+    }
+    for heading in (
+        "## Inputs",
+        "## Workflow",
+        "## Drafting Eligibility Contract",
+        "## Safety Invariants",
+        "## Outputs",
+        "## Stop Conditions",
+        "## Quality Checks",
+    ):
+        assert heading in body
+
+    inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
+    assert [line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `claims-vN.md`",
+        "- `claim-feature-map-vN.json`",
+        "- `technical-facts-vN.json`",
+    ]
+    outputs = body.split("## Outputs", 1)[1].split("## Stop Conditions", 1)[0]
+    assert [line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")] == [
+        "- `specification-vN.md`",
+        "- `abstract-vN.md`",
+        "- `drawing-plan-vN.json`",
+    ]
+
+    workflow = body.split("## Workflow", 1)[1].split("## Drafting Eligibility Contract", 1)[0]
+    steps = [line.strip() for line in workflow.splitlines() if line.strip()[:1].isdigit()]
+    assert steps[0].startswith("1. Apply a value-based eligibility gate")
+    for phrase in (
+        "current `claim-set` approval actually exists",
+        "future, oral, managerial, filename-based, or placeholder approval",
+        "claims and mapping are current and non-stale",
+        "Every claim-feature occurrence",
+        "`confirmed` or `source-backed`",
+        "concrete source anchor",
+        "Do not silently broaden, narrow, rewrite, omit, or add claim features",
+        "Never promote `inferred`, `missing`, or `conflicted`",
+        "Do not invent embodiments, alternatives, components, relationships, parameters, effects, drawings, reference numerals, algorithms, data flows, or operating conditions",
+        "Do not invoke quality review or document export",
+    ):
+        assert phrase in body
+    for phrase in (
+        "technical field",
+        "background",
+        "invention content",
+        "technical problem",
+        "technical solution",
+        "beneficial effects",
+        "drawing description",
+        "detailed embodiments",
+        "terminology/claim-support checks",
+        "unresolved questions",
+        "source anchors",
+        "300 Chinese characters",
+        "reference-numeral",
+        "zero planned figures",
+        "no specification text",
+        "no abstract text",
+    ):
+        assert phrase in body
+
+    eligibility = body.split("## Drafting Eligibility Contract", 1)[1].split("## Safety Invariants", 1)[0]
+    rows = {}
+    for line in eligibility.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 3 or cells[0] == "condition" or set(cells[0]) == {"-"}:
+            continue
+        key, rule, decision = cells[0].strip("`"), cells[1], cells[2].strip("`")
+        rows[key] = (rule, decision)
+    assert rows == {
+        "approval_state": (
+            "current claim-set approval exists; future, oral, managerial, filename-based, placeholder, or back-signed approval is not current",
+            "required",
+        ),
+        "claim_freshness": (
+            "claims-vN.md is current/non-stale and matches the approved claim set",
+            "required",
+        ),
+        "mapping_freshness": (
+            "claim-feature-map-vN.json is current/non-stale and matches claims",
+            "required",
+        ),
+        "dependency_validity": (
+            "all claim dependencies are internally valid and every occurrence has a valid feature_id and concrete source_anchor",
+            "required",
+        ),
+        "feature_support": (
+            "each claim-feature occurrence is supported by a confirmed or source-backed technical fact",
+            "required",
+        ),
+    }
+    invariant_section = body.split("## Safety Invariants", 1)[1].split("## Outputs", 1)[0]
+    invariant_rows = {}
+    for line in invariant_section.splitlines():
+        if not line.startswith("|") or "`" not in line:
+            continue
+        _, invariant, decision, _ = line.split("|")
+        invariant_rows[invariant.strip().strip("`")] = decision.strip().strip("`")
+    assert invariant_rows == {
+        "claim_set_rewrite": "forbidden",
+        "unsupported_fact_promotion": "forbidden",
+        "invented_embodiment_or_drawing": "forbidden",
+        "blocked_placeholder_text": "forbidden",
+        "quality_review_or_export": "forbidden",
+    }
+
+
+def test_cn_specification_drafting_has_exact_contract():
+    skill_dir = ROOT / "skills" / "cn-specification-drafting"
+    skill_path = skill_dir / "SKILL.md"
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+    assert skill_path.exists()
+    text = skill_path.read_text(encoding="utf-8")
+    _, frontmatter, body = text.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["name"] == "cn-specification-drafting"
+    assert metadata["description"].startswith("Use when ")
+    for trigger in (
+        "Chinese patent specification",
+        "abstract",
+        "embodiments",
+        "drawing descriptions",
+        "drawing plans",
+        "approved claims",
+    ):
+        assert trigger in metadata["description"]
+    _assert_specification_drafting_body_contract(body)
+    interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
+    assert interface["display_name"] == "璇存槑涔︽挵鍐檂"
+    assert interface["short_description"]
+    assert interface["default_prompt"] == "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€俙"
+
+
+@pytest.mark.parametrize(
+    "contradictory_rule",
+    (
+        "| approval_state | future or oral approval is current | sufficient |",
+        "| feature_support | inferred facts may be drafted as definitive text | sufficient |",
+        "| claim_set_rewrite | rewrite or omit a claim feature when support is weak | allowed |",
+        "| invented_embodiment_or_drawing | common components, effects, views, or numerals may be added | allowed |",
+        "| blocked_placeholder_text | blocked mode may include a sample specification or abstract | allowed |",
+        "| quality_review_or_export | continue to quality review or export after drafting | allowed |",
+    ),
+)
+def test_specification_drafting_semantic_contract_rejects_contradictions(contradictory_rule):
+    body = (ROOT / "skills" / "cn-specification-drafting" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    assert contradictory_rule not in body
+    mutated = f"{body}\n{contradictory_rule}\n"
+    assert contradictory_rule in mutated
+
+
+@pytest.mark.parametrize(
+    ("section_name", "unexpected_artifact"),
+    (
+        ("Inputs", "technical-solution-v1.json"),
+        ("Inputs", "approval-request-v1.md"),
+        ("Outputs", "support-matrix-v1.json"),
+        ("Outputs", "application-v1.docx"),
+        ("Quality Checks", "quality-review-v1.json"),
+    ),
+)
+def test_specification_drafting_artifact_scope_rejects_mutations(section_name, unexpected_artifact):
+    body = (ROOT / "skills" / "cn-specification-drafting" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    following = {
+        "Inputs": "## Workflow",
+        "Outputs": "## Stop Conditions",
+        "Quality Checks": None,
+    }
+    start = body.index(f"## {section_name}")
+    end = body.index(following[section_name], start) if following[section_name] else len(body)
+    mutated = f"{body[:end]}\nAn additional artifact is `{unexpected_artifact}`.\n{body[end:]}"
+    assert unexpected_artifact in _artifact_tokens(mutated)
+    with pytest.raises(AssertionError):
+        _assert_specification_drafting_body_contract(mutated)
