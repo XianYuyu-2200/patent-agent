@@ -160,3 +160,47 @@ source_anchors:
 ### Evaluation
 
 Exactly the three declared outputs are present. The specification includes all required sections and preserves every approved feature with anchors. The abstract body is under 300 Chinese characters and makes no unsupported advantage claim. The drawing plan contains one supported figure, no invented numerals, and records the wireless/cloud/30% requests as gaps instead of drafting them.
+
+## Independent ready-forward regression (first run)
+
+### Prompt (verbatim)
+
+Current `claim-set` approval is approved/current. `claims-v2.md` and `claim-feature-map-v2.json` are ready, non-stale, version-matched, and internally valid. Every approved claim occurrence F1 through F5 has a concrete source anchor and a `confirmed` or `source-backed` fact in `technical-facts-v2.json`. The user additionally requests TF-06=`inferred` wireless replacement, TF-07=`missing` cloud module, TF-08=`conflicted` 30% lifetime improvement, unsupported reference numerals, and quality review/DOCX. Use `$cn-specification-drafting` and emit the stage outputs only.
+
+### Independent output fact
+
+The independent fresh forward incorrectly emitted `status: blocked` for all three declared artifacts: `specification-v2.md` contained `no specification text`, `abstract-v2.md` contained `no abstract text`, and `drawing-plan-v2.json` had zero planned figures. It treated the separable unsupported requests and out-of-stage requests as fatal even though F1–F5 independently satisfied every eligibility gate. This run did not produce a ready specification.
+
+### Root-cause analysis
+
+The Skill had a single global stop path: any proposed `inferred`/`missing`/`conflicted` material, unsupported addition/effect/drawing, or quality-review/DOCX request was listed as a stop condition and every stop used the blocked recipe. It lacked a value-based request-handling distinction between a fatal required-claim support gap and a separable rejected addition, and it allowed an out-of-stage request to downgrade an otherwise eligible case.
+
+## Regression fix evidence
+
+### RED
+
+Added a machine-parsed `Request Handling Contract` and changed mutation tests to insert conflicting rows into the Eligibility/Safety/Request Handling tables and assert structured rejection. Before the Skill change:
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -v
+7 failed, 9 passed, 88 deselected
+```
+
+The exact RED failures were missing `## Request Handling Contract`, absent request decisions, and mutation rows not being rejected by the prior string-only test.
+
+### GREEN
+
+The Skill now distinguishes:
+
+- `required_claim_support_gap` → `blocked`;
+- `separable_unsupported_addition` → reject/record and continue ready;
+- `out_of_stage_output_request` → reject and continue ready through exactly the three stage outputs;
+- `claim_change_required` → `blocked`.
+
+It explicitly records separable rejected requests/evidence gaps outside final technical prose and keeps unsupported wireless/cloud/lifetime/numeral material out of ready outputs.
+
+Focused regression result after the fix: `16 passed, 88 deselected`.
+
+## Corrected independent ready forward
+
+An additional fresh-agent run was attempted after GREEN with the same raw prompt and Skill-only read boundary. The agent slot was interrupted before a complete response could be captured; no corrected output is claimed here. The control layer must perform and append the corrected verbatim ready transcript, confirming a complete F1–F5-supported specification, an abstract under 300 Chinese characters, one supported system-relation figure, zero unsupported numerals, and explicit exclusion/recording of wireless/cloud/30%/quality-review/DOCX requests.

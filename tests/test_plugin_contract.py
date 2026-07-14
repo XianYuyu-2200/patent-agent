@@ -1348,6 +1348,7 @@ def _assert_specification_drafting_body_contract(body: str) -> None:
         "## Inputs",
         "## Workflow",
         "## Drafting Eligibility Contract",
+        "## Request Handling Contract",
         "## Safety Invariants",
         "## Outputs",
         "## Stop Conditions",
@@ -1404,7 +1405,7 @@ def _assert_specification_drafting_body_contract(body: str) -> None:
     ):
         assert phrase in body
 
-    eligibility = body.split("## Drafting Eligibility Contract", 1)[1].split("## Safety Invariants", 1)[0]
+    eligibility = body.split("## Drafting Eligibility Contract", 1)[1].split("## Request Handling Contract", 1)[0]
     rows = {}
     for line in eligibility.splitlines():
         if not line.startswith("|"):
@@ -1413,6 +1414,8 @@ def _assert_specification_drafting_body_contract(body: str) -> None:
         if len(cells) != 3 or cells[0] == "condition" or set(cells[0]) == {"-"}:
             continue
         key, rule, decision = cells[0].strip("`"), cells[1], cells[2].strip("`")
+        if key in rows and rows[key] != (rule, decision):
+            raise AssertionError(f"conflicting eligibility rule for {key}")
         rows[key] = (rule, decision)
     assert rows == {
         "approval_state": (
@@ -1436,13 +1439,48 @@ def _assert_specification_drafting_body_contract(body: str) -> None:
             "required",
         ),
     }
+    request_section = body.split("## Request Handling Contract", 1)[1].split("## Safety Invariants", 1)[0]
+    request_rows = {}
+    for line in request_section.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 3 or cells[0] == "request" or set(cells[0]) == {"-"}:
+            continue
+        key, rule, decision = cells[0].strip("`"), cells[1], cells[2].strip("`")
+        if key in request_rows and request_rows[key] != (rule, decision):
+            raise AssertionError(f"conflicting request rule for {key}")
+        request_rows[key] = (rule, decision)
+    assert request_rows == {
+        "required_claim_support_gap": (
+            "approved claim or required section support is missing, invalid, or conflicted; emit the blocked recipe",
+            "blocked",
+        ),
+        "separable_unsupported_addition": (
+            "exclude the requested addition from final text, record rejected_requests/evidence_gaps/unresolved/source_anchors, and continue with qualified claims in ready mode",
+            "reject-and-continue-ready",
+        ),
+        "out_of_stage_output_request": (
+            "refuse quality review or DOCX and still emit eligible specification, abstract, and drawing-plan outputs",
+            "reject-and-continue-ready",
+        ),
+        "claim_change_required": (
+            "a support gap cannot be separated without changing or omitting an approved claim feature; emit the blocked recipe",
+            "blocked",
+        ),
+    }
     invariant_section = body.split("## Safety Invariants", 1)[1].split("## Outputs", 1)[0]
     invariant_rows = {}
     for line in invariant_section.splitlines():
-        if not line.startswith("|") or "`" not in line:
+        if not line.startswith("|"):
             continue
-        _, invariant, decision, _ = line.split("|")
-        invariant_rows[invariant.strip().strip("`")] = decision.strip().strip("`")
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 2 or cells[0] == "invariant" or set(cells[0]) == {"-"}:
+            continue
+        key, value = cells[0].strip("`"), cells[1].strip("`")
+        if key in invariant_rows and invariant_rows[key] != value:
+            raise AssertionError(f"conflicting invariant for {key}")
+        invariant_rows[key] = value
     assert invariant_rows == {
         "claim_set_rewrite": "forbidden",
         "unsupported_fact_promotion": "forbidden",
@@ -1491,9 +1529,33 @@ def test_cn_specification_drafting_has_exact_contract():
 )
 def test_specification_drafting_semantic_contract_rejects_contradictions(contradictory_rule):
     body = (ROOT / "skills" / "cn-specification-drafting" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
-    assert contradictory_rule not in body
-    mutated = f"{body}\n{contradictory_rule}\n"
-    assert contradictory_rule in mutated
+    key = contradictory_rule.split("|", 2)[1].strip()
+    section = "## Drafting Eligibility Contract" if key in {"approval_state", "feature_support"} else "## Safety Invariants"
+    marker = "## Request Handling Contract" if section == "## Drafting Eligibility Contract" else "## Outputs"
+    section_end = body.index(marker, body.index(section))
+    mutation = contradictory_rule if section == "## Drafting Eligibility Contract" else f"| {key} | allowed |"
+    mutated = f"{body[:section_end]}\n{mutation}\n{body[section_end:]}"
+    with pytest.raises(AssertionError):
+        _assert_specification_drafting_body_contract(mutated)
+
+
+@pytest.mark.parametrize(
+    "contradictory_rule",
+    (
+        "| required_claim_support_gap | ignore the missing claim support and continue | reject-and-continue-ready |",
+        "| separable_unsupported_addition | reject the requested addition and block all qualified drafting | blocked |",
+        "| out_of_stage_output_request | a quality-review or DOCX request blocks specification drafting | blocked |",
+        "| claim_change_required | silently change the approved claim and continue | reject-and-continue-ready |",
+    ),
+)
+def test_specification_drafting_request_handling_rejects_conflicting_decisions(contradictory_rule):
+    body = (ROOT / "skills" / "cn-specification-drafting" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    assert "## Request Handling Contract" in body
+    marker = "## Safety Invariants"
+    section_end = body.index(marker, body.index("## Request Handling Contract"))
+    mutated = f"{body[:section_end]}\n{contradictory_rule}\n{body[section_end:]}"
+    with pytest.raises(AssertionError):
+        _assert_specification_drafting_body_contract(mutated)
 
 
 @pytest.mark.parametrize(

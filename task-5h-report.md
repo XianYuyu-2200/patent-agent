@@ -67,3 +67,60 @@ Strict UTF-8 decoding succeeded for the Skill, metadata, contract tests, and sce
 ## Self-review
 
 The implementation stays within the post-claim/pre-quality-review boundary, emits no support matrix, approval request, document export, or other artifact, and does not embed a mechanical or software domain pack. All material drafting is required to remain anchored to approved claims, the claim-feature mapping, or qualified technical facts. Blocked and ready behavior are both explicitly tested and evidenced.
+
+## Ready-forward regression repair
+
+### Independent failure and root cause
+
+The control layer's true fresh ready forward exposed a behavior bug: although current approval, non-stale claims/mapping, valid dependencies, and all approved F1–F5 occurrences passed eligibility, the Skill downgraded the whole case to blocked because the user also requested TF-06=`inferred` wireless content, TF-07=`missing` cloud content, TF-08=`conflicted` 30% lifetime effect, unsupported numerals, and quality-review/DOCX output.
+
+Systematic tracing found the conflict in the Skill's decision language. It correctly allowed unconfirmed material only as gaps, but its global Stop Conditions classified every unsupported proposed addition and every out-of-stage request as fatal and required the blocked recipe for every stop. There was no request-level separation between required claim support and optional rejected content.
+
+### TDD RED
+
+- Added a structured, machine-parsed `Request Handling Contract` requirement.
+- Repaired the old semantic mutation test: mutations are inserted into Eligibility or Safety tables and `_assert_specification_drafting_body_contract` must reject them.
+- Added conflicting decision mutations for every request-handling key.
+- Parsers now reject duplicate keys with conflicting rules/decisions rather than relying on blacklist sentences.
+
+RED command/result:
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -v
+7 failed, 9 passed, 88 deselected
+```
+
+Failures were attributable to the missing Request Handling section/decisions and the previously ineffective mutation contract.
+
+### Minimal GREEN change
+
+Added four exact request decisions while preserving the exact three inputs, exact three outputs, and five Safety Invariants:
+
+- `required_claim_support_gap: blocked`;
+- `separable_unsupported_addition: reject-and-continue-ready`;
+- `out_of_stage_output_request: reject-and-continue-ready`;
+- `claim_change_required: blocked`.
+
+The Skill now blocks only when approved-claim or required-section support is missing/invalid/conflicted, or when the gap cannot be separated without changing/omitting an approved claim feature. Separable unsupported content is excluded from final prose and recorded in rejected requests/evidence gaps/unresolved/source anchors. Quality-review/DOCX requests are refused without downgrading eligible drafting.
+
+### Forward status
+
+The original independent failure is documented in the scenario file. A corrected Skill-only fresh agent was successfully spawned, but it did not complete before the control layer instructed submission without further waiting; it was interrupted and no fresh corrected output is claimed. The control layer will rerun the same ready scenario after this commit. The pre-existing fatal blocked scenario remains governed by unchanged approval/freshness/claim-support eligibility gates.
+
+### Repair verification
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -q
+16 passed, 88 deselected
+
+python -m pytest tests/test_plugin_contract.py -q
+104 passed
+
+python -m pytest -q
+117 passed
+
+PYTHONUTF8=1 quick_validate.py skills/cn-specification-drafting
+Skill is valid!
+```
+
+Strict UTF-8 decoding succeeded for all changed/reported files. `git diff --check` exited 0. No other Skill or production artifact was changed.
