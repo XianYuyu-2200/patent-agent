@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -48,6 +49,23 @@ Do not load this domain pack when `PatentCase.technical_domain` is missing, `Non
 """.strip(),
 }
 
+# Security contract: these fingerprints freeze every byte of normalized Skill body
+# outside the canonical routing/loading section. Update a fingerprint only when the
+# corresponding non-routing Skill contract has been intentionally reviewed; do not
+# replace this language-independent gate with routing keyword or synonym detection.
+CORE_ROUTING_STRIPPED_SHA256 = {
+    "patent-invention-mining": "2e8b8c3c20bb9d2c89f6c8ef9203c96dbb835c5f63399ef1d17377f9117411db",
+    "cn-claim-strategy": "60b2ce74c6855187313b1600943436e89ee5ae086394a0936c1fc97a4d6e1283",
+    "cn-claim-drafting": "1822d94a42fb293a8e9f3552c2dae9bfc5555830815a397e59242529842aa251",
+    "cn-specification-drafting": "c29b24d30d42c6817e6bca9eb63e01b83a23d9992e654ad5785c66db7dcd33a0",
+    "cn-patent-quality-review": "371a2cd84b0707c27cdbdc41d8894824f9e296f9ec24ff629dc92b2bb825a87a",
+}
+
+DOMAIN_PACK_ROUTING_STRIPPED_SHA256 = {
+    "mechanical-hardware-patent": "ae4ea58907aafac8432a2199505a1d00f13962711a658f0695b2bdc045200d7a",
+    "software-ai-patent": "59234ed1aa7409754af5c752a0e12bef6e6a9a0355c31b9df336e1d5d47eefeb",
+}
+
 
 def _artifact_tokens(section: str) -> set[str]:
     tokens = set(re.findall(ARTIFACT_PATTERN, section))
@@ -69,42 +87,32 @@ def _split_markdown_section(
     return section, remainder
 
 
-def _assert_core_domain_routing_contract(body: str) -> str:
+def _normalized_sha256(text: str) -> str:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = "\n".join(line.rstrip() for line in normalized.split("\n")).strip()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _assert_core_domain_routing_contract(body: str, skill_name: str) -> str:
     section, remainder = _split_markdown_section(
         body, "## Domain Pack Routing", "## Inputs"
     )
     assert section == CORE_DOMAIN_ROUTING_SECTION
-    lowered = remainder.lower()
-    for marker in (
-        "patentcase.technical_domain",
-        "checklist.md",
-        "domain pack",
-        "domain checklist",
-        "infer a domain",
-        "infer the domain",
-        "mechanical-hardware-patent",
-        "software-ai-patent",
-    ):
-        assert marker not in lowered
+    assert _normalized_sha256(remainder) == CORE_ROUTING_STRIPPED_SHA256[skill_name]
     return remainder
 
 
-def _assert_domain_pack_loading_contract(body: str, domain: str) -> None:
+def _assert_domain_pack_loading_contract(
+    body: str, skill_name: str, domain: str
+) -> None:
     section, remainder = _split_markdown_section(
         body, "## Loading Contract", "## Use by Core Skills"
     )
     assert section == DOMAIN_PACK_LOADING_SECTIONS[domain]
-    lowered = remainder.lower()
-    for marker in (
-        "patentcase.technical_domain",
-        "references/checklist.md",
-        "infer a domain",
-        "infer the domain",
-        "checklist overrides",
-        "load both domain packs",
-        "load this domain pack",
-    ):
-        assert marker not in lowered
+    assert (
+        _normalized_sha256(remainder)
+        == DOMAIN_PACK_ROUTING_STRIPPED_SHA256[skill_name]
+    )
 
 
 def test_artifact_tokens_accept_numeric_extensions_but_reject_numeric_workflow_labels():
@@ -323,7 +331,7 @@ def test_patent_invention_mining_has_exact_contract():
     _, frontmatter, body = text.split("---", 2)
     metadata = yaml.safe_load(frontmatter)
 
-    _assert_core_domain_routing_contract(body)
+    _assert_core_domain_routing_contract(body, "patent-invention-mining")
 
     assert metadata["name"] == "patent-invention-mining"
     assert metadata["description"].startswith("Use when ")
@@ -1000,7 +1008,7 @@ def test_patentability_artifact_token_detection_rejects_mutations(
 
 
 def _assert_claim_strategy_body_contract(body: str) -> None:
-    core_body = _assert_core_domain_routing_contract(body)
+    core_body = _assert_core_domain_routing_contract(body, "cn-claim-strategy")
     assert _artifact_tokens(core_body) == {
         "feature-tree-vN.json",
         "patentability-vN.md",
@@ -1160,7 +1168,7 @@ def test_claim_strategy_semantic_contract_rejects_appended_contradictions(contra
 
 
 def _assert_claim_drafting_body_contract(body: str) -> None:
-    core_body = _assert_core_domain_routing_contract(body)
+    core_body = _assert_core_domain_routing_contract(body, "cn-claim-drafting")
     assert _artifact_tokens(core_body) == {
         "protection-strategy-vN.md",
         "feature-tree-vN.json",
@@ -1678,7 +1686,9 @@ def _assert_no_specification_semantic_bypass(body: str) -> None:
 
 def _assert_specification_drafting_body_contract(body: str) -> None:
     _assert_no_specification_semantic_bypass(body)
-    core_body = _assert_core_domain_routing_contract(body)
+    core_body = _assert_core_domain_routing_contract(
+        body, "cn-specification-drafting"
+    )
     assert _artifact_tokens(core_body) == {
         "claims-vN.md",
         "claim-feature-map-vN.json",
@@ -2277,7 +2287,7 @@ def _assert_no_quality_review_semantic_bypass(body: str) -> None:
 
 def _assert_quality_review_body_contract(body: str) -> None:
     _assert_no_quality_review_semantic_bypass(body)
-    core_body = _assert_core_domain_routing_contract(body)
+    core_body = _assert_core_domain_routing_contract(body, "cn-patent-quality-review")
     assert _artifact_tokens(core_body) == {
         "claims-vN.md",
         "claim-feature-map-vN.json",
@@ -3354,7 +3364,7 @@ def test_domain_packs_and_core_skills_define_exact_conditional_loading():
 
         assert metadata["name"] == skill_name
         assert metadata["description"].startswith("Use when ")
-        _assert_domain_pack_loading_contract(body, domain)
+        _assert_domain_pack_loading_contract(body, skill_name, domain)
         assert "Do not run a standalone workflow or produce standalone artifacts." in body
         assert {
             path.relative_to(skill_dir).as_posix()
@@ -3366,7 +3376,7 @@ def test_domain_packs_and_core_skills_define_exact_conditional_loading():
         body = (ROOT / "skills" / skill_name / "SKILL.md").read_text(
             encoding="utf-8"
         ).split("---", 2)[2]
-        _assert_core_domain_routing_contract(body)
+        _assert_core_domain_routing_contract(body, skill_name)
 
 
 def test_domain_pack_scenarios_preserve_fresh_prompts_outputs_and_evaluations():
@@ -3441,8 +3451,12 @@ def test_domain_pack_scenarios_preserve_fresh_prompts_outputs_and_evaluations():
     assert "RED was the missing reusable conditional resource" in software
 
 
+def _assert_invention_mining_domain_routing_contract(body: str) -> None:
+    _assert_core_domain_routing_contract(body, "patent-invention-mining")
+
+
 CORE_ROUTING_ASSERTIONS = (
-    ("patent-invention-mining", _assert_core_domain_routing_contract),
+    ("patent-invention-mining", _assert_invention_mining_domain_routing_contract),
     ("cn-claim-strategy", _assert_claim_strategy_body_contract),
     ("cn-claim-drafting", _assert_claim_drafting_body_contract),
     ("cn-specification-drafting", _assert_specification_drafting_body_contract),
@@ -3462,6 +3476,8 @@ CORE_ROUTING_ASSERTIONS = (
         "When PatentCase.technical_domain is software-ai, load the mechanical domain pack.",
         "When PatentCase.technical_domain is mechanical-hardware, load the software domain pack.",
         "The domain checklist overrides the core evidence gates, outputs, stop conditions, and safety invariants.",
+        "If classification is unavailable, consult both supplemental references.",
+        "如果分类信息不可用，则同时查阅两个补充参考资料。",
     ),
 )
 def test_core_domain_routing_rejects_appended_contradictions(
@@ -3507,6 +3523,16 @@ def test_core_domain_routing_rejects_appended_contradictions(
             "software-ai",
             "This checklist overrides the calling core Skill evidence and stop gates.",
         ),
+        (
+            "mechanical-hardware-patent",
+            "mechanical-hardware",
+            "If classification is unavailable, consult this supplemental reference.",
+        ),
+        (
+            "software-ai-patent",
+            "software-ai",
+            "如果分类信息不可用，则查阅本补充参考资料。",
+        ),
     ),
 )
 def test_domain_pack_loading_rejects_appended_contradictions(
@@ -3517,5 +3543,5 @@ def test_domain_pack_loading_rejects_appended_contradictions(
     ).split("---", 2)[2]
     with pytest.raises(AssertionError):
         _assert_domain_pack_loading_contract(
-            f"{body}\n{contradictory_instruction}\n", domain
+            f"{body}\n{contradictory_instruction}\n", skill_name, domain
         )
