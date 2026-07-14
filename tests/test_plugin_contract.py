@@ -66,6 +66,20 @@ DOMAIN_PACK_ROUTING_STRIPPED_SHA256 = {
     "software-ai-patent": "59234ed1aa7409754af5c752a0e12bef6e6a9a0355c31b9df336e1d5d47eefeb",
 }
 
+# Security contract: raw YAML frontmatter is part of the Skill trigger and
+# instruction surface. Any future frontmatter change requires explicit review
+# and an intentional fingerprint update; do not replace this language-independent
+# gate with routing keywords or synonym detection.
+DOMAIN_ROUTING_FRONTMATTER_SHA256 = {
+    "patent-invention-mining": "b3d7852cb3047611e55daa935fb84cee330d88da2a66c3d4dfe76019af6b482e",
+    "cn-claim-strategy": "35a44c1dbcb3e5da8aca7d5e417076787dfd6a5566b6fcce4132e919a25636f9",
+    "cn-claim-drafting": "a4e197b5e88207783fe0c8e1d6d0baf7fb691f8814e411874ac1388839d20d50",
+    "cn-specification-drafting": "f340d8157ebc10e35b3a758aa58a35999861166f61925454b7b0cbc5594fa6e2",
+    "cn-patent-quality-review": "f22f03ca3b7501bb021d257501b6bb37262ec0aee2e852f643a99a216edd9712",
+    "mechanical-hardware-patent": "1362c7fd80d4c1249a00b08ed03aa972d01872cc2199926763d7f34be8fac2cb",
+    "software-ai-patent": "a2767e391dad9b86813444af8f047049b1bf07990f86d083c787e36fcd895b04",
+}
+
 
 def _artifact_tokens(section: str) -> set[str]:
     tokens = set(re.findall(ARTIFACT_PATTERN, section))
@@ -91,6 +105,19 @@ def _normalized_sha256(text: str) -> str:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     normalized = "\n".join(line.rstrip() for line in normalized.split("\n")).strip()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _assert_domain_routing_frontmatter_contract(
+    raw_frontmatter: str, skill_name: str
+) -> dict:
+    assert (
+        _normalized_sha256(raw_frontmatter)
+        == DOMAIN_ROUTING_FRONTMATTER_SHA256[skill_name]
+    )
+    metadata = yaml.safe_load(raw_frontmatter)
+    assert metadata["name"] == skill_name
+    assert metadata["description"].startswith("Use when ")
+    return metadata
 
 
 def _assert_core_domain_routing_contract(body: str, skill_name: str) -> str:
@@ -329,7 +356,9 @@ def test_patent_invention_mining_has_exact_contract():
     assert skill_path.exists()
     text = skill_path.read_text(encoding="utf-8")
     _, frontmatter, body = text.split("---", 2)
-    metadata = yaml.safe_load(frontmatter)
+    metadata = _assert_domain_routing_frontmatter_contract(
+        frontmatter, "patent-invention-mining"
+    )
 
     _assert_core_domain_routing_contract(body, "patent-invention-mining")
 
@@ -1086,7 +1115,9 @@ def test_cn_claim_strategy_has_exact_contract():
     assert skill_path.exists()
     text = skill_path.read_text(encoding="utf-8")
     _, frontmatter, body = text.split("---", 2)
-    metadata = yaml.safe_load(frontmatter)
+    metadata = _assert_domain_routing_frontmatter_contract(
+        frontmatter, "cn-claim-strategy"
+    )
     assert metadata["name"] == "cn-claim-strategy"
     assert metadata["description"].startswith("Use when ")
     for trigger in ("Chinese patent protection strategy", "claim strategy", "invention patent", "utility model", "design-around", "feature tree", "patentability"):
@@ -1291,7 +1322,9 @@ def test_cn_claim_drafting_has_exact_contract():
     assert skill_path.exists()
     text = skill_path.read_text(encoding="utf-8")
     _, frontmatter, body = text.split("---", 2)
-    metadata = yaml.safe_load(frontmatter)
+    metadata = _assert_domain_routing_frontmatter_contract(
+        frontmatter, "cn-claim-drafting"
+    )
     assert metadata["name"] == "cn-claim-drafting"
     assert metadata["description"].startswith("Use when ")
     for trigger in (
@@ -1852,7 +1885,9 @@ def test_cn_specification_drafting_has_exact_contract():
     assert skill_path.exists()
     text = skill_path.read_text(encoding="utf-8")
     _, frontmatter, body = text.split("---", 2)
-    metadata = yaml.safe_load(frontmatter)
+    metadata = _assert_domain_routing_frontmatter_contract(
+        frontmatter, "cn-specification-drafting"
+    )
     assert metadata["name"] == "cn-specification-drafting"
     assert metadata["description"].startswith("Use when ")
     for trigger in (
@@ -2468,7 +2503,9 @@ def test_cn_patent_quality_review_has_exact_contract():
     assert skill_path.exists()
     text = skill_path.read_text(encoding="utf-8")
     _, frontmatter, body = text.split("---", 2)
-    metadata = yaml.safe_load(frontmatter)
+    metadata = _assert_domain_routing_frontmatter_contract(
+        frontmatter, "cn-patent-quality-review"
+    )
     assert metadata["name"] == "cn-patent-quality-review"
     assert metadata["description"].startswith("Use when ")
     for trigger in (
@@ -3360,7 +3397,9 @@ def test_domain_packs_and_core_skills_define_exact_conditional_loading():
         skill_dir = ROOT / "skills" / skill_name
         text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
         _, frontmatter, body = text.split("---", 2)
-        metadata = yaml.safe_load(frontmatter)
+        metadata = _assert_domain_routing_frontmatter_contract(
+            frontmatter, skill_name
+        )
 
         assert metadata["name"] == skill_name
         assert metadata["description"].startswith("Use when ")
@@ -3544,4 +3583,45 @@ def test_domain_pack_loading_rejects_appended_contradictions(
     with pytest.raises(AssertionError):
         _assert_domain_pack_loading_contract(
             f"{body}\n{contradictory_instruction}\n", skill_name, domain
+        )
+
+
+@pytest.mark.parametrize(
+    "skill_name",
+    (
+        "patent-invention-mining",
+        "cn-claim-strategy",
+        "cn-claim-drafting",
+        "cn-specification-drafting",
+        "cn-patent-quality-review",
+        "mechanical-hardware-patent",
+        "software-ai-patent",
+    ),
+)
+@pytest.mark.parametrize(
+    "contradictory_description",
+    (
+        "If classification is unavailable, consult both supplemental references.",
+        "如果分类信息不可用，则同时查阅两个补充参考资料。",
+    ),
+)
+def test_domain_routing_frontmatter_rejects_appended_contradictions(
+    skill_name, contradictory_description
+):
+    text = (ROOT / "skills" / skill_name / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    _, frontmatter, _ = text.split("---", 2)
+    frontmatter_lines = frontmatter.splitlines()
+    description_index = next(
+        index
+        for index, line in enumerate(frontmatter_lines)
+        if line.startswith("description: ")
+    )
+    frontmatter_lines[description_index] += f" {contradictory_description}"
+    mutated_frontmatter = "\n".join(frontmatter_lines)
+
+    with pytest.raises(AssertionError):
+        _assert_domain_routing_frontmatter_contract(
+            mutated_frontmatter, skill_name
         )
