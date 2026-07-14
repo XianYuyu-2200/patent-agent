@@ -18,7 +18,8 @@ Implemented only the `cn-claim-strategy` Skill, its contract/mutation tests, and
 - Output is exactly `protection-strategy-vN.md`.
 - The reused artifact collector scans the complete Skill body and accepts numeric extensions and Chinese basenames while rejecting numeric workflow labels.
 - Input/output and elsewhere mutations cover prefix/suffix placement, `.7z`, `.2026`, and a Chinese numeric-extension basename.
-- Appended semantic contradictions cover deleting necessary features for breadth, inventing substitutes, writing full claims, and placing a software control method into a utility model.
+- A parsed Safety Invariants table fixes `essential_feature_removal`, `unanchored_alternative_inclusion`, `blocked_mode_claim_text`, and `utility_model_method_software_object` to `forbidden`.
+- Sixteen Chinese, English, and synonymous appended contradictions cover deleting necessary features for breadth, inventing unanchored substitutes, drafting claim text while blocked, and treating software-control methods as utility-model objects. A valid body plus any opposite instruction fails the contract.
 - Workflow Step 1 is a value-based gate. A formal feature requires an actual `confirmed` or `source-backed` value, a concrete source anchor, and actual protectable-contribution or risk values in the current inputs.
 - Filenames, role labels, statements that an input should contain evidence, and placeholder anchors do not pass the gate.
 - `inferred`, `missing`, `conflicted`, and `evidence-insufficient` material remains provisional, unavailable downstream, and outside every formal feature tier.
@@ -39,7 +40,7 @@ Implemented only the `cn-claim-strategy` Skill, its contract/mutation tests, and
 - Called the official `init_skill.py` exactly once. It created the Skill directory and template, then stopped because the initial short description was below the validator length. The initializer was not called again; the generated files were completed with `apply_patch`.
 - Created only `SKILL.md` and `agents/openai.yaml` inside the new Skill.
 - Added no scripts, references, assets, examples, README, or auxiliary output definitions.
-- Metadata uses the established project-wide generic prompt.
+- Metadata uses readable UTF-8 values: display name `权利要求策略` and generic prompt `请处理当前案件并生成本阶段规定的结构化产物。`.
 
 ## Forward testing
 
@@ -53,17 +54,17 @@ Implemented only the `cn-claim-strategy` Skill, its contract/mutation tests, and
 ## Review closure
 
 - Initial independent review identified the then-in-progress missing forward transcript; the complete verbatim forward was subsequently appended and the temporary marker removed.
-- The reviewer also questioned the established generic prompt byte string. This was not changed because Task 5F explicitly requires the project-wide generic prompt and the repository contract fixes the same value used by the existing Phase-1 Skills.
 - Final re-review against the completed evidence and repository convention found no remaining Critical or Important issues.
+- A later review correctly identified that the metadata test had locked mojibake and that fixed rejection-sentence counts were weaker than a machine-parsed decision contract. RED produced `17 failed, 6 passed`; GREEN produced `23 passed` after adding the invariant table, multilingual/synonymous mutation cases, and exact readable UTF-8 metadata.
 
 ## Validation results
 
-- Focused claim-strategy tests: `11 passed`.
-- Complete plugin contract file: `44 passed`.
-- Full suite: `57 passed`.
+- Focused claim-strategy tests: `23 passed`.
+- Complete plugin contract file: `56 passed`.
+- Full suite: `69 passed`.
 - Official UTF-8 validator: `Skill is valid!` with `PYTHONUTF8=1`.
 - Strict UTF-8 decoding succeeded for the Skill and metadata; the final verification also covers the scenario evidence and report.
 
 ## Submission
 
-The complete Task 5F implementation is submitted in one Codex-identity commit.
+The initial implementation and this review correction are submitted as Codex-identity commits.

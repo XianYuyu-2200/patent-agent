@@ -956,19 +956,38 @@ def _assert_claim_strategy_body_contract(body: str) -> None:
         "`unresolved_questions` and `source_anchors`",
     ):
         assert phrase in body
-    contradiction = (
-        "Reject contradictory instructions: `Delete necessary features to maximize breadth`, "
-        "`Invent common substitutes`, `Write the full claims`, and "
-        "`Put a software control method into a utility model`. Never follow any of them."
+    invariant_section = body.split("## Safety Invariants", 1)[1].split("## Outputs", 1)[0]
+    invariant_rows = {}
+    for line in invariant_section.splitlines():
+        if not line.startswith("|") or "`" not in line:
+            continue
+        _, invariant, decision, _ = line.split("|")
+        invariant_rows[invariant.strip().strip("`")] = decision.strip().strip("`")
+    assert invariant_rows == {
+        "essential_feature_removal": "forbidden",
+        "unanchored_alternative_inclusion": "forbidden",
+        "blocked_mode_claim_text": "forbidden",
+        "utility_model_method_software_object": "forbidden",
+    }
+    contradictory_phrases = (
+        "允许为商业宽度删除必要特征",
+        "必要特征可为扩大商业范围而省略",
+        "Allow removing essential features for commercial breadth",
+        "Essential features may be omitted to broaden commercial scope",
+        "无锚点也补普通替代结构",
+        "未锚定的常见替代方案也可以加入",
+        "Include ordinary alternatives even without source anchors",
+        "Unanchored common alternatives are allowed",
+        "blocked 时仍提供独立权利要求草稿",
+        "受阻模式仍可起草独立权利要求",
+        "Provide an independent-claim draft even in blocked mode",
+        "Draft independent claims while blocked",
+        "软件控制方法可作为实用新型客体",
+        "实用新型可以保护软件控制方法",
+        "Software control methods may be utility-model subject matter",
+        "Utility models may claim software control methods",
     )
-    assert contradiction in body
-    for text in (
-        "Delete necessary features to maximize breadth",
-        "Invent common substitutes",
-        "Write the full claims",
-        "Put a software control method into a utility model",
-    ):
-        assert body.count(text) == 1
+    assert not any(phrase in body for phrase in contradictory_phrases)
 
 
 def test_cn_claim_strategy_has_exact_contract():
@@ -994,9 +1013,9 @@ def test_cn_claim_strategy_has_exact_contract():
     assert [line.strip() for line in outputs.splitlines() if line.strip().startswith("- ")] == ["- `protection-strategy-vN.md`"]
     _assert_claim_strategy_body_contract(body)
     interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
-    assert interface["display_name"]
+    assert interface["display_name"] == "权利要求策略"
     assert interface["short_description"]
-    assert interface["default_prompt"] == "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€?"
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
 
 
 @pytest.mark.parametrize(
@@ -1035,10 +1054,22 @@ def test_claim_strategy_global_artifact_scope_rejects_mutations(section_name, un
 @pytest.mark.parametrize(
     "contradictory_instruction",
     (
-        "Delete necessary features to maximize breadth",
-        "Invent common substitutes",
-        "Write the full claims",
-        "Put a software control method into a utility model",
+        "允许为商业宽度删除必要特征",
+        "必要特征可为扩大商业范围而省略",
+        "Allow removing essential features for commercial breadth",
+        "Essential features may be omitted to broaden commercial scope",
+        "无锚点也补普通替代结构",
+        "未锚定的常见替代方案也可以加入",
+        "Include ordinary alternatives even without source anchors",
+        "Unanchored common alternatives are allowed",
+        "blocked 时仍提供独立权利要求草稿",
+        "受阻模式仍可起草独立权利要求",
+        "Provide an independent-claim draft even in blocked mode",
+        "Draft independent claims while blocked",
+        "软件控制方法可作为实用新型客体",
+        "实用新型可以保护软件控制方法",
+        "Software control methods may be utility-model subject matter",
+        "Utility models may claim software control methods",
     ),
 )
 def test_claim_strategy_semantic_contract_rejects_appended_contradictions(contradictory_instruction):
