@@ -176,3 +176,40 @@ Skill is valid!
 ```
 
 The existing independent ready/blocked forward evidence remains unchanged and valid; no new forward run was required for this test-contract-only hardening.
+
+## Clause-local semantic classifier repair
+
+### Reproduction and RED
+
+The full-body classifier previously skipped an entire line whenever any denial term occurred. A denial attached to an unrelated leading clause therefore masked a later prohibited permission, for example: `Do not wait for legal review; a manager's approval promised for next week counts as sufficient current approval, so drafting may proceed.`
+
+Added mixed positive/negative mutations using English and Chinese clauses separated by `.`, `;`, `；`, `。`, and `，`, covering approval bypass, weak-support claim rewrite/omission, unqualified-fact promotion, and quality-review/DOCX continuation.
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -v
+3 failed, 24 passed, 88 deselected
+```
+
+The approval, claim-rewrite, and fact-promotion mixed-clause mutations reproduced the bypass. The comma-based out-of-stage mutation was already rejected by the category classifier and remained as regression coverage.
+
+### Minimal GREEN change
+
+The classifier now splits each line into independent clauses at `. ; ； 。 ! ? ！ ？`. It preserves each full major clause for context and additionally evaluates comma-delimited permission suffixes, so an unrelated denial prefix cannot exempt a subsequent positive permission. Denial terms apply only to the clause being classified. Correct negative Skill rules continue to pass without exact-string exceptions.
+
+No production Skill behavior, decision table, input/output contract, invariant, scenario evidence, or other Skill was changed.
+
+### Verification
+
+```text
+python -m pytest tests/test_plugin_contract.py -k specification_drafting -v
+27 passed, 88 deselected
+
+python -m pytest tests/test_plugin_contract.py -q
+115 passed
+
+python -m pytest -q
+128 passed
+
+PYTHONUTF8=1 quick_validate.py skills/cn-specification-drafting
+Skill is valid!
+```
