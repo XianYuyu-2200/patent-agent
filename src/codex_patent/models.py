@@ -67,8 +67,11 @@ class ApprovalScope(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     claims: str = Field(pattern=r"^v[1-9]\d*$")
+    claim_feature_map: str = Field(pattern=r"^v[1-9]\d*$")
     specification: str = Field(pattern=r"^v[1-9]\d*$")
     abstract: str = Field(pattern=r"^v[1-9]\d*$")
+    drawing_plan: str = Field(pattern=r"^v[1-9]\d*$")
+    prior_art: str = Field(pattern=r"^v[1-9]\d*$")
     quality_review: str = Field(pattern=r"^v[1-9]\d*$")
     action: Literal["DOCX export"]
 

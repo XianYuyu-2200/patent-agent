@@ -24,10 +24,21 @@ SECTION_ORDER = [
 SPECIFICATION_SECTION_ORDER = SECTION_ORDER[:-1]
 REQUIRED_ARTIFACT_EXTENSIONS = {
     "claims": ".md",
+    "claim-feature-map": ".json",
     "specification": ".md",
     "abstract": ".md",
+    "drawing-plan": ".json",
+    "prior-art": ".json",
     "quality-review": ".json",
 }
+QUALITY_REVIEW_UPSTREAM_TYPES = (
+    "claims",
+    "claim-feature-map",
+    "specification",
+    "abstract",
+    "drawing-plan",
+    "prior-art",
+)
 _PACKAGE_TEMPLATE = resources.files("codex_patent").joinpath(
     "templates", "cn-patent-application.docx"
 )
@@ -460,6 +471,153 @@ def _read_artifact(
     return content
 
 
+def _normalise_workspace_path(case_dir: Path, value: str) -> Path | None:
+    """Resolve an anchor path only when it remains inside the case workspace."""
+    try:
+        candidate = Path(value)
+    except (TypeError, ValueError):
+        return None
+    if candidate.is_absolute():
+        return None
+    try:
+        resolved = (case_dir / candidate).resolve()
+        if not resolved.is_relative_to(case_dir.resolve()):
+            return None
+    except OSError:
+        return None
+    return resolved
+
+
+def _fact_anchor_keys(case: PatentCase) -> set[tuple[str, str]]:
+    return {
+        (anchor.source_id.strip(), anchor.locator.strip())
+        for fact in case.facts
+        for anchor in fact.anchors
+        if anchor.source_id.strip() and anchor.locator.strip()
+    }
+
+
+def _resolve_source_anchor(
+    case_dir: Path,
+    case: PatentCase,
+    selected: dict[str, ArtifactRef],
+    anchor: SourceAnchor,
+) -> bool:
+    """Require review anchors to identify persisted workspace/source records."""
+    selected_paths = {
+        artifact.path: (case_dir / artifact.path).resolve()
+        for artifact in selected.values()
+    }
+    if isinstance(anchor, str):
+        path = _normalise_workspace_path(case_dir, anchor)
+        return (
+            anchor in selected_paths
+            and path is not None
+            and path.is_file()
+            and path == selected_paths[anchor]
+        )
+
+    if anchor.artifact:
+        path = _normalise_workspace_path(case_dir, anchor.artifact)
+        if path is None or not path.is_file():
+            return False
+        if (
+            anchor.artifact not in selected_paths
+            or path != selected_paths[anchor.artifact]
+        ):
+            return False
+    if anchor.source_id or anchor.locator:
+        if not (anchor.source_id or "").strip() or not (anchor.locator or "").strip():
+            return False
+        if (
+            (anchor.source_id.strip(), anchor.locator.strip())
+            not in _fact_anchor_keys(case)
+        ):
+            return False
+    return bool(anchor.artifact or anchor.source_id)
+
+
+def _iter_json_objects(value: object):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _iter_json_objects(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _iter_json_objects(child)
+
+
+def _prior_art_disclosure_keys(content: str) -> set[tuple[str, str]]:
+    try:
+        value = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError("prior-art artifact must contain valid JSON") from exc
+    keys: set[tuple[str, str]] = set()
+    for item in _iter_json_objects(value):
+        document_id = item.get("document_id") or item.get("publication_number")
+        disclosure_anchor = (
+            item.get("disclosure_anchor")
+            or item.get("anchor")
+            or item.get("disclosure_location")
+        )
+        if isinstance(document_id, str) and isinstance(disclosure_anchor, str):
+            if document_id.strip() and disclosure_anchor.strip():
+                keys.add((document_id.strip().casefold(), disclosure_anchor.strip()))
+    return keys
+
+
+def _validate_quality_review_provenance(
+    case_dir: Path,
+    case: PatentCase,
+    artifacts: dict[str, ArtifactRef],
+    contents: dict[str, str],
+    review: _CompletedQualityReview,
+) -> None:
+    referenced_artifacts: set[str] = set()
+
+    def check_anchor(anchor: SourceAnchor) -> None:
+        if isinstance(anchor, _SourceAnchor) and anchor.artifact:
+            referenced_artifacts.add(anchor.artifact)
+        elif isinstance(anchor, str):
+            referenced_artifacts.add(anchor)
+        if not _resolve_source_anchor(case_dir, case, artifacts, anchor):
+            raise ValueError(
+                "quality-review provenance anchor does not resolve to persisted "
+                "workspace/source record"
+            )
+
+    for anchor in review.source_anchors:
+        check_anchor(anchor)
+    for check_name in QUALITY_CHECK_NAMES:
+        for anchor in getattr(review.checks, check_name).source_anchors:
+            check_anchor(anchor)
+    for finding in review.findings:
+        for anchor in finding.source_anchors:
+            check_anchor(anchor)
+
+    expected_names = {
+        artifacts[artifact_type].path
+        for artifact_type in QUALITY_REVIEW_UPSTREAM_TYPES
+    }
+    if not expected_names.issubset(referenced_artifacts):
+        missing = sorted(expected_names - referenced_artifacts)
+        raise ValueError(
+            "quality-review provenance does not reference all required upstream artifacts: "
+            + ", ".join(missing)
+        )
+
+    disclosure_keys = _prior_art_disclosure_keys(contents["prior-art"])
+    for disclosure in review.prior_art_assessment.verified_disclosures:
+        key = (
+            disclosure.document_id.strip().casefold(),
+            disclosure.disclosure_anchor.strip(),
+        )
+        if key not in disclosure_keys:
+            raise ValueError(
+                "verified prior-art disclosure does not resolve to a persisted prior-art record"
+            )
+
+
 def _parse_claims(content: str) -> list[str]:
     claims = [
         block.strip()
@@ -562,8 +720,11 @@ def _scoped_final_delivery_approval(
     approval = approvals[0]
     expected_scope = {
         "claims": f"v{artifacts['claims'].version}",
+        "claim_feature_map": f"v{artifacts['claim-feature-map'].version}",
         "specification": f"v{artifacts['specification'].version}",
         "abstract": f"v{artifacts['abstract'].version}",
+        "drawing_plan": f"v{artifacts['drawing-plan'].version}",
+        "prior_art": f"v{artifacts['prior-art'].version}",
         "quality_review": f"v{artifacts['quality-review'].version}",
         "action": "DOCX export",
     }
@@ -627,6 +788,9 @@ def export_application(
     }
     review = _quality_review_report(
         contents["quality-review"], artifacts["quality-review"].version
+    )
+    _validate_quality_review_provenance(
+        case_dir, case, artifacts, contents, review
     )
     if (
         review.application_set is not None

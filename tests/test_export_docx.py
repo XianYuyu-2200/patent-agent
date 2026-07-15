@@ -36,21 +36,52 @@ SPECIFICATION_TEXT = "\n\n".join(
 )
 ARTIFACT_PATHS = {
     "claims": "drafts/claims-v2.md",
+    "claim-feature-map": "drafts/claim-feature-map-v2.json",
     "specification": "drafts/specification-v2.md",
     "abstract": "drafts/abstract-v2.md",
+    "drawing-plan": "drafts/drawing-plan-v2.json",
+    "prior-art": "search/prior-art-v2.json",
     "quality-review": "review-log/quality-review-v2.json",
 }
 ARTIFACT_CONTENT = {
     "claims": CLAIMS_TEXT,
+    "claim-feature-map": json.dumps(
+        {"status": "ready", "source_anchors": ["drafts/claims-v2.md"]},
+        ensure_ascii=False,
+    ),
     "specification": SPECIFICATION_TEXT,
     "abstract": SECTIONS["摘要"],
+    "drawing-plan": json.dumps(
+        {
+            "status": "ready",
+            "source_anchors": ["drafts/claim-feature-map-v2.json"],
+        },
+        ensure_ascii=False,
+    ),
+    "prior-art": json.dumps(
+        {
+            "status": "completed",
+            "verified_documents": [
+                {
+                    "document_id": "CN-TEST-PRIOR-ART",
+                    "disclosures": [
+                        {
+                            "document_id": "CN-TEST-PRIOR-ART",
+                            "disclosure_anchor": "[0042]-[0045]",
+                        }
+                    ],
+                }
+            ],
+        },
+        ensure_ascii=False,
+    ),
 }
 RUNNER = CliRunner()
 
 
 def _official_quality_review(version: int = 2, **overrides: object) -> dict:
     disclosure_anchor = {
-        "artifact": f"prior-art-v{version}.json",
+        "artifact": f"search/prior-art-v{version}.json",
         "document_id": "CN-TEST-PRIOR-ART",
         "disclosure_anchor": "[0042]-[0045]",
         "overlap": ["F1"],
@@ -69,7 +100,7 @@ def _official_quality_review(version: int = 2, **overrides: object) -> dict:
             check: {
                 "status": "completed",
                 "conclusion_or_gap": "reviewed with no delivery-blocking finding",
-                "source_anchors": [f"{check}-v{version}"],
+                "source_anchors": [f"drafts/claims-v{version}.md"],
             }
             for check in (
                 "claim_clarity_dependency",
@@ -111,9 +142,12 @@ def _official_quality_review(version: int = 2, **overrides: object) -> dict:
         "delivery_recommendation": "ready-for-human-review",
         "unresolved_questions": [],
         "source_anchors": [
-            f"claims-v{version}.md",
-            f"specification-v{version}.md",
-            f"abstract-v{version}.md",
+            f"drafts/claims-v{version}.md",
+            f"drafts/claim-feature-map-v{version}.json",
+            f"drafts/specification-v{version}.md",
+            f"drafts/abstract-v{version}.md",
+            f"drafts/drawing-plan-v{version}.json",
+            f"search/prior-art-v{version}.json",
         ],
     }
     review["checks"]["novelty"]["source_anchors"] = [disclosure_anchor]
@@ -131,8 +165,11 @@ def _scoped_final_delivery_approval(version: int = 2) -> dict:
         "application_set": f"CN-TEST-001-v{version}",
         "scope": {
             "claims": f"v{version}",
+            "claim_feature_map": f"v{version}",
             "specification": f"v{version}",
             "abstract": f"v{version}",
+            "drawing_plan": f"v{version}",
+            "prior_art": f"v{version}",
             "quality_review": f"v{version}",
             "action": "DOCX export",
         },
@@ -917,8 +954,22 @@ def test_export_refuses_completed_prior_art_checks_with_only_evidence_gaps(
 def test_export_accepts_consistent_verified_prior_art_assessment(tmp_path: Path):
     _, case, case_dir = _write_ready_case(tmp_path)
     quality_review = case_dir / _artifact(case, "quality-review").path
+    prior_art = case_dir / _artifact(case, "prior-art").path
+    prior_art.write_text(
+        json.dumps(
+            {
+                "verified_disclosures": [
+                    {
+                        "document_id": "CN123456789A",
+                        "disclosure_anchor": "[0042]-[0045]",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     disclosure_anchor = {
-        "artifact": "prior-art-v2.json",
+        "artifact": "search/prior-art-v2.json",
         "document_id": "CN123456789A",
         "disclosure_anchor": "[0042]-[0045]",
         "overlap": ["F1"],
@@ -943,6 +994,97 @@ def test_export_accepts_consistent_verified_prior_art_assessment(tmp_path: Path)
     )
     for check_name in ("novelty", "inventive_step"):
         review["checks"][check_name]["source_anchors"] = [disclosure_anchor]
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    assert export_application(case_dir, output, final_approval=True) == output
+    assert output.is_file()
+
+
+def test_export_accepts_persisted_cross_artifact_provenance(tmp_path: Path):
+    """All six review inputs and the prior-art disclosure resolve in the case."""
+    _, _, case_dir = _write_ready_case(tmp_path)
+    output = tmp_path / "application.docx"
+
+    assert export_application(case_dir, output, final_approval=True) == output
+    assert output.is_file()
+
+
+def test_export_refuses_missing_quality_review_provenance_artifact(tmp_path: Path):
+    """The review's declared upstream inputs must be persisted in the workspace."""
+    _, _, case_dir = _write_ready_case(tmp_path)
+    case_path = case_dir / "case.json"
+    data = json.loads(case_path.read_text(encoding="utf-8"))
+    data["artifacts"] = [
+        artifact
+        for artifact in data["artifacts"]
+        if artifact["artifact_type"] != "claim-feature-map"
+    ]
+    case_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="claim-feature-map"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_synthetic_prior_art_reference(tmp_path: Path):
+    """A nonblank document ID/anchor is not evidence without a persisted record."""
+    _, case, case_dir = _write_ready_case(tmp_path)
+    output = tmp_path / "application.docx"
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review()
+    review["prior_art_assessment"]["verified_disclosures"][0]["document_id"] = (
+        "CN-SYNTHETIC"
+    )
+    for check_name in ("novelty", "inventive_step"):
+        review["checks"][check_name]["source_anchors"][0]["document_id"] = (
+            "CN-SYNTHETIC"
+        )
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    with pytest.raises(ValueError, match="prior-art"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_arbitrary_nonblank_source_anchor(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review()
+    review["checks"]["form"]["source_anchors"] = ["synthetic-form-anchor"]
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="provenance anchor"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_accepts_source_anchor_backed_by_persisted_case_fact(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    case_path = case_dir / "case.json"
+    data = json.loads(case_path.read_text(encoding="utf-8"))
+    data["facts"] = [
+        {
+            "fact_id": "F1",
+            "statement": "persisted source-backed fact",
+            "status": "source-backed",
+            "anchors": [
+                {"source_id": "SRC-001", "locator": "paragraph-1"}
+            ],
+            "final_text_allowed": True,
+        }
+    ]
+    case_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review()
+    review["source_anchors"].append(
+        {"source_id": "SRC-001", "locator": "paragraph-1"}
+    )
     quality_review.write_text(json.dumps(review), encoding="utf-8")
     output = tmp_path / "application.docx"
 
