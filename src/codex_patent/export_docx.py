@@ -69,13 +69,50 @@ class _QualityReviewInputVersions(_StrictReviewModel):
     prior_art: str = Field(pattern=r"^v[1-9]\d*$")
 
 
+class _SourceAnchor(_StrictReviewModel):
+    artifact: str | None = None
+    anchor: str | None = None
+    source_id: str | None = None
+    locator: str | None = None
+    quote: str | None = None
+    document_id: str | None = None
+    disclosure_anchor: str | None = None
+    evidence_gap: str | None = None
+    overlap: list[str] | None = None
+
+    @model_validator(mode="after")
+    def require_meaningful_anchor(self):
+        text_values = (
+            self.artifact,
+            self.anchor,
+            self.source_id,
+            self.locator,
+            self.quote,
+            self.document_id,
+            self.disclosure_anchor,
+            self.evidence_gap,
+        )
+        if not any((value or "").strip() for value in text_values) and not self.overlap:
+            raise ValueError("source anchor must identify evidence or an evidence gap")
+        return self
+
+
+SourceAnchor = str | _SourceAnchor
+
+
+def _require_meaningful_anchors(anchors: list[SourceAnchor]) -> None:
+    if any(isinstance(anchor, str) and not anchor.strip() for anchor in anchors):
+        raise ValueError("source anchors must not contain blank strings")
+
+
 class _QualityReviewCheck(_StrictReviewModel):
     status: Literal["completed", "not-assessable", "blocked"]
     conclusion_or_gap: str = Field(min_length=1)
-    source_anchors: list[str | dict[str, object]]
+    source_anchors: list[SourceAnchor]
 
     @model_validator(mode="after")
     def require_completed_check_evidence(self):
+        _require_meaningful_anchors(self.source_anchors)
         if self.status == "completed" and not self.source_anchors:
             raise ValueError("completed checks require source anchors")
         return self
@@ -104,7 +141,7 @@ class _QualityReviewFinding(_StrictReviewModel):
     section: str | None = None
     occurrence_id: str | None = None
     location: str | None = None
-    source_anchors: list[str | dict[str, object]]
+    source_anchors: list[SourceAnchor]
     explanation: str = Field(min_length=1)
     suggested_action: str = Field(min_length=1)
     blocks_delivery: bool
@@ -112,6 +149,7 @@ class _QualityReviewFinding(_StrictReviewModel):
 
     @model_validator(mode="after")
     def require_location_and_evidence(self):
+        _require_meaningful_anchors(self.source_anchors)
         if not any(
             value is not None
             for value in (
@@ -143,6 +181,28 @@ class _OpenIssueCounts(_StrictReviewModel):
         return self
 
 
+class _InputIntegrity(_StrictReviewModel):
+    status: Literal["valid-for-review"]
+    all_six_readable: Literal[True]
+    freshness: Literal["current"]
+    mutually_version_matched: Literal[True]
+    internal_identity: Literal["identifiable"]
+    placeholder_block: Literal[False]
+
+
+class _PriorArtRisk(_StrictReviewModel):
+    claim: str | int
+    level: Literal["none", "low", "medium", "high", "not-assessable"]
+    basis: str | None = None
+    gap: str | None = None
+
+
+class _PriorArtAssessment(_StrictReviewModel):
+    verified_disclosures: list[dict[str, object]]
+    novelty_risk: list[_PriorArtRisk]
+    inventive_step_risk: list[_PriorArtRisk]
+
+
 class _CompletedQualityReview(_StrictReviewModel):
     review_status: Literal["completed", "completed-with-issues"]
     input_versions: _QualityReviewInputVersions
@@ -151,13 +211,14 @@ class _CompletedQualityReview(_StrictReviewModel):
     open_issue_counts: _OpenIssueCounts
     delivery_recommendation: Literal["blocked", "ready-for-human-review"]
     unresolved_questions: list[str | dict[str, object]]
-    source_anchors: list[str | dict[str, object]]
+    source_anchors: list[SourceAnchor]
     application_set: str | None = None
-    input_integrity: dict[str, object] | None = None
-    prior_art_assessment: dict[str, object] | None = None
+    input_integrity: _InputIntegrity | None = None
+    prior_art_assessment: _PriorArtAssessment | None = None
 
     @model_validator(mode="after")
     def validate_internal_gate_consistency(self):
+        _require_meaningful_anchors(self.source_anchors)
         observed_counts = {
             severity: sum(
                 finding.severity == severity for finding in self.findings
@@ -173,6 +234,20 @@ class _CompletedQualityReview(_StrictReviewModel):
             raise ValueError("completed-with-issues review requires findings")
         if not self.source_anchors:
             raise ValueError("completed review requires source anchors")
+        if self.prior_art_assessment is not None:
+            unreported_high_risk = any(
+                risk.level == "high"
+                for risk in (
+                    self.prior_art_assessment.novelty_risk
+                    + self.prior_art_assessment.inventive_step_risk
+                )
+            ) and not any(
+                finding.severity in {"critical", "high"}
+                and finding.category in {"novelty-risk", "inventive-step-risk"}
+                for finding in self.findings
+            )
+            if unreported_high_risk:
+                raise ValueError("high prior-art risk requires a blocking finding")
         return self
 
 
@@ -335,7 +410,7 @@ def _quality_review_report(content: str, version: int) -> _CompletedQualityRevie
             "quality-review artifact does not cover the exact current artifact versions"
         )
     if any(
-        getattr(review.checks, check_name).status == "blocked"
+        getattr(review.checks, check_name).status != "completed"
         for check_name in QUALITY_CHECK_NAMES
     ):
         raise ValueError("quality-review artifact is not eligible for export")
@@ -378,6 +453,12 @@ def _scoped_final_delivery_approval(
         raise ValueError(
             "final-delivery approval must cover the exact current artifact versions "
             "and DOCX export action"
+        )
+    current_version = artifacts["claims"].version
+    expected_application_set = f"{case.case_id}-v{current_version}"
+    if approval.application_set != expected_application_set:
+        raise ValueError(
+            "final-delivery approval must cover the current application set"
         )
     return approval
 

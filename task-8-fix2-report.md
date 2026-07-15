@@ -79,16 +79,43 @@ Initial result: `5 failed, 1 passed`. The one already-passing case was the open-
 ### GREEN
 
 - New adversarial set: `6 passed`.
-- Focused export/model/workflow/repository/packaging surface: `58 passed`.
-- Full suite: `415 passed`.
+- Initial focused export/model/workflow/repository/packaging surface: `58 passed`.
+- Initial full suite: `415 passed`.
+
+## Post-Commit Review Closure
+
+The required completion review found three additional fail-closed gaps. A review could mark a delivery check `not-assessable`; an approval could name a different application set while using the same versions; and optional integrity/anchor/prior-art structures could contain contradictory or empty gate evidence.
+
+A second RED/GREEN cycle added six reviewer-probe tests:
+
+- `not-assessable` specification-support check;
+- `not-assessable` novelty check;
+- blocked/stale/placeholder `input_integrity`;
+- empty structured source anchor;
+- unreported high prior-art risk;
+- approval for `OTHER-CASE-v2` against case `CN-TEST-001`.
+
+RED: `6 failed` for the demonstrated bypasses.
+
+GREEN: `6 passed`. The exporter now:
+
+- requires every delivery check to be `completed`, so `not-assessable` is never treated as pass;
+- validates optional `input_integrity` only in its positive current/readable/version-matched/identifiable/no-placeholder state;
+- validates structured anchors and rejects blank strings or empty objects;
+- validates structured prior-art risk and requires high risk to be represented by a high/critical finding;
+- derives the authoritative application-set identity as `<case_id>-v<current_version>` and compares it independently with `approval.application_set`.
+
+Final focused surface: `64 passed`.
+
+Final full suite: `421 passed`.
 
 ## Wheel and Isolated Installed Export
 
 A fresh wheel was built and installed with `--target` into a temporary directory outside the checkout.
 
 - wheel: `codex_patent-0.1.0-py3-none-any.whl`;
-- size: `49,758` bytes;
-- SHA-256: `e98a3fcaf90ddb9e6960b62e2260e6dbc207e893b882325a365c9beedf2b1d15`;
+- size: `50,247` bytes;
+- SHA-256: `b05e5b1ba3b6d2af25058fcd3e5834931b73d2b4ee41eaf708fd26ec6efa802d`;
 - packaged template member: `codex_patent/templates/cn-patent-application.docx`;
 - packaged template size: `37,730` bytes;
 - import resolved from the isolated install target;
@@ -99,7 +126,7 @@ A fresh wheel was built and installed with `--target` into a temporary directory
 
 ## Final Verification
 
-- `PYTHONUTF8=1 python -m pytest -q` -> `415 passed in 10.36s`.
+- `PYTHONUTF8=1 python -m pytest -q` -> `421 passed in 9.36s`.
 - `PYTHONUTF8=1 python -m compileall -q src tests` -> exit 0.
 - `codex-patent version` -> `0.1.0`.
 - `git diff --check` -> exit 0.

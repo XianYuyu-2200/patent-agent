@@ -519,6 +519,105 @@ def test_export_refuses_official_review_with_open_high_finding(tmp_path: Path):
     assert not output.exists()
 
 
+@pytest.mark.parametrize(
+    "check_name",
+    ("specification_support_sufficiency", "novelty"),
+)
+def test_export_refuses_delivery_check_that_is_not_assessable(
+    tmp_path: Path,
+    check_name: str,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review()
+    review["checks"][check_name] = {
+        "status": "not-assessable",
+        "conclusion_or_gap": "required evidence is unavailable",
+        "source_anchors": [{"evidence_gap": "required evidence is unavailable"}],
+    }
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="not eligible for export"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_blocked_input_integrity_metadata(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        input_integrity={
+            "status": "blocked",
+            "all_six_readable": False,
+            "freshness": "stale",
+            "mutually_version_matched": False,
+            "internal_identity": "unidentifiable",
+            "placeholder_block": True,
+        }
+    )
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_empty_structured_source_anchor(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(source_anchors=[{}])
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_unreported_high_prior_art_risk(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        prior_art_assessment={
+            "verified_disclosures": [],
+            "novelty_risk": [{"claim": "C1", "level": "high"}],
+            "inventive_step_risk": [],
+        }
+    )
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
 def test_export_refuses_legacy_issues_report_even_when_issue_is_high(
     tmp_path: Path,
 ):
@@ -582,6 +681,29 @@ def test_export_refuses_replaced_v2_artifacts_with_retained_v1_approval(
     output = tmp_path / "application.docx"
 
     with pytest.raises(ValueError, match="exact current artifact versions"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_approval_for_a_different_application_set(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    quality_review.write_text(
+        json.dumps(_official_quality_review(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    approval = _scoped_final_delivery_approval(version=2)
+    approval["application_set"] = "OTHER-CASE-v2"
+    _replace_persisted_approvals(case_dir, [approval])
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="current application set"):
         export_application(
             case_dir,
             output,
