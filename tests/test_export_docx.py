@@ -49,6 +49,12 @@ RUNNER = CliRunner()
 
 
 def _official_quality_review(version: int = 2, **overrides: object) -> dict:
+    disclosure_anchor = {
+        "artifact": f"prior-art-v{version}.json",
+        "document_id": "CN-TEST-PRIOR-ART",
+        "disclosure_anchor": "[0042]-[0045]",
+        "overlap": ["F1"],
+    }
     review = {
         "review_status": "completed",
         "input_versions": {
@@ -79,6 +85,22 @@ def _official_quality_review(version: int = 2, **overrides: object) -> dict:
                 "form",
             )
         },
+        "prior_art_assessment": {
+            "verified_disclosures": [
+                {
+                    "document_id": "CN-TEST-PRIOR-ART",
+                    "disclosure_anchor": "[0042]-[0045]",
+                    "disclosure": "verified disclosure",
+                    "overlapping_features": ["F1"],
+                }
+            ],
+            "novelty_risk": [
+                {"claim": "C1", "level": "low", "basis": "limited overlap"}
+            ],
+            "inventive_step_risk": [
+                {"claim": "C1", "level": "low", "basis": "limited overlap"}
+            ],
+        },
         "findings": [],
         "open_issue_counts": {
             "critical": 0,
@@ -94,6 +116,8 @@ def _official_quality_review(version: int = 2, **overrides: object) -> dict:
             f"abstract-v{version}.md",
         ],
     }
+    review["checks"]["novelty"]["source_anchors"] = [disclosure_anchor]
+    review["checks"]["inventive_step"]["source_anchors"] = [disclosure_anchor]
     review.update(overrides)
     return review
 
@@ -480,6 +504,29 @@ def test_export_accepts_official_completed_quality_review_recipe(tmp_path: Path)
     output = tmp_path / "application.docx"
     assert export_application(case_dir, output, final_approval=True) == output
     assert output.is_file()
+
+
+def test_export_refuses_completed_review_without_prior_art_assessment(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review()
+    review["checks"]["novelty"]["source_anchors"] = ["novelty-v2"]
+    review["checks"]["inventive_step"]["source_anchors"] = ["inventive_step-v2"]
+    review.pop("prior_art_assessment", None)
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=TEMPLATE_PATH,
+        )
+
+    assert not output.exists()
 
 
 @pytest.mark.parametrize(

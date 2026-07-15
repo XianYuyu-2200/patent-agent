@@ -246,7 +246,7 @@ class _CompletedQualityReview(_StrictReviewModel):
     source_anchors: list[SourceAnchor]
     application_set: str | None = None
     input_integrity: _InputIntegrity | None = None
-    prior_art_assessment: _PriorArtAssessment | None = None
+    prior_art_assessment: _PriorArtAssessment
 
     @model_validator(mode="after")
     def validate_internal_gate_consistency(self):
