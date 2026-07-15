@@ -1918,9 +1918,11 @@ def test_cn_specification_drafting_has_exact_contract():
         assert trigger in metadata["description"]
     _assert_specification_drafting_body_contract(body)
     interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
-    assert interface["display_name"] == "璇存槑涔︽挵鍐檂"
-    assert interface["short_description"]
-    assert interface["default_prompt"] == "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€俙"
+    assert interface["display_name"] == "说明书撰写"
+    assert interface["short_description"] == (
+        "根据已批准权利要求和技术事实起草说明书、摘要与附图方案"
+    )
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
 
 
 @pytest.mark.parametrize(
@@ -2539,9 +2541,11 @@ def test_cn_patent_quality_review_has_exact_contract():
         assert trigger in metadata["description"]
     _assert_quality_review_body_contract(body)
     interface = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))["interface"]
-    assert interface["display_name"] == "涓撳埄璐ㄩ噺瀹℃煡"
-    assert interface["short_description"]
-    assert interface["default_prompt"] == "璇峰鐞嗗綋鍓嶆浠跺苟鐢熸垚鏈樁娈佃瀹氱殑缁撴瀯鍖栦骇鐗┿€俙"
+    assert interface["display_name"] == "专利质量审查"
+    assert interface["short_description"] == (
+        "审查中国专利的支持性、清楚性、一致性与交付风险"
+    )
+    assert interface["default_prompt"] == "请处理当前案件并生成本阶段规定的结构化产物。"
 
 
 @pytest.mark.parametrize(
