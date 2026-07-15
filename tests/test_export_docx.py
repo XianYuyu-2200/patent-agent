@@ -61,18 +61,14 @@ ARTIFACT_CONTENT = {
     "prior-art": json.dumps(
         {
             "status": "completed",
-            "verified_documents": [
+            "verified_disclosures": [
                 {
+                    "status": "verified",
                     "document_id": "CN-TEST-PRIOR-ART",
-                    "disclosures": [
-                        {
-                            "document_id": "CN-TEST-PRIOR-ART",
-                            "disclosure_anchor": "[0042]-[0045]",
-                        }
-                    ],
+                    "disclosure_anchor": "[0042]-[0045]",
                 }
             ],
-            "source_anchors": [],
+            "source_anchors": ["drafts/claim-feature-map-v2.json"],
         },
         ensure_ascii=False,
     ),
@@ -962,11 +958,12 @@ def test_export_accepts_consistent_verified_prior_art_assessment(tmp_path: Path)
                 "status": "completed",
                 "verified_disclosures": [
                     {
+                        "status": "verified",
                         "document_id": "CN123456789A",
                         "disclosure_anchor": "[0042]-[0045]",
                     }
                 ],
-                "source_anchors": [],
+                "source_anchors": ["drafts/claim-feature-map-v2.json"],
             }
         ),
         encoding="utf-8",
@@ -1057,6 +1054,90 @@ def test_export_refuses_incomplete_upstream_provenance_artifact(tmp_path: Path):
     output = tmp_path / "application.docx"
 
     with pytest.raises(ValueError, match="claim-feature-map artifact has ineligible status"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_empty_upstream_source_anchors(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    for artifact_type in ("claim-feature-map", "drawing-plan", "prior-art"):
+        artifact_path = case_dir / _artifact(case, artifact_type).path
+        value = json.loads(artifact_path.read_text(encoding="utf-8"))
+        value["source_anchors"] = []
+        artifact_path.write_text(json.dumps(value), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="source_anchors must be nonempty"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_synthetic_upstream_source_anchors(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    for artifact_type in ("claim-feature-map", "drawing-plan", "prior-art"):
+        artifact_path = case_dir / _artifact(case, artifact_type).path
+        value = json.loads(artifact_path.read_text(encoding="utf-8"))
+        value["source_anchors"] = ["SYNTHETIC-NONEXISTENT"]
+        artifact_path.write_text(json.dumps(value), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="upstream source anchor"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_unverified_nested_prior_art_disclosure(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    prior_art = case_dir / _artifact(case, "prior-art").path
+    prior_art.write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "source_anchors": ["drafts/claim-feature-map-v2.json"],
+                "leads": [
+                    {
+                        "status": "unverified",
+                        "document_id": "CN-TEST-PRIOR-ART",
+                        "disclosure_anchor": "[0042]-[0045]",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="verified_disclosures"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_blocked_nested_prior_art_disclosure(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    prior_art = case_dir / _artifact(case, "prior-art").path
+    prior_art.write_text(
+        json.dumps(
+            {
+                "status": "completed-with-findings",
+                "source_anchors": ["drafts/claim-feature-map-v2.json"],
+                "records": [
+                    {
+                        "status": "blocked-missing-source",
+                        "document_id": "CN-TEST-PRIOR-ART",
+                        "disclosure_anchor": "[0042]-[0045]",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="verified_disclosures"):
         export_application(case_dir, output, final_approval=True)
 
     assert not output.exists()

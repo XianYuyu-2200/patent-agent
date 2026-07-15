@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import Literal
 
 from docx import Document
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 
 from codex_patent.models import ApprovalRecord, ArtifactRef, PatentCase
 from codex_patent.repository import CaseRepository
@@ -237,6 +244,22 @@ class _VerifiedDisclosure(_StrictReviewModel):
             or any(not feature.strip() for feature in self.overlapping_features)
         ):
             raise ValueError("overlapping feature identifiers must be nonblank")
+        return self
+
+
+class _PersistedPriorArtDisclosure(_StrictReviewModel):
+    model_config = ConfigDict(extra="allow", strict=True)
+
+    status: Literal["verified", "eligible"]
+    document_id: str
+    disclosure_anchor: str
+
+    @model_validator(mode="after")
+    def require_verified_identity(self):
+        if not self.document_id.strip() or not self.disclosure_anchor.strip():
+            raise ValueError(
+                "persisted verified disclosures require a document ID and exact anchor"
+            )
         return self
 
 
@@ -497,34 +520,30 @@ def _fact_anchor_keys(case: PatentCase) -> set[tuple[str, str]]:
     }
 
 
+def _persisted_artifact_paths(
+    case_dir: Path, artifacts: list[ArtifactRef]
+) -> dict[str, Path]:
+    paths: dict[str, Path] = {}
+    for artifact in artifacts:
+        if artifact.stale:
+            continue
+        resolved = _normalise_workspace_path(case_dir, artifact.path)
+        if resolved is not None and resolved.is_file():
+            paths[artifact.path] = resolved
+    return paths
+
+
 def _resolve_source_anchor(
-    case_dir: Path,
     case: PatentCase,
-    selected: dict[str, ArtifactRef],
+    persisted_paths: dict[str, Path],
     anchor: SourceAnchor,
 ) -> bool:
     """Require review anchors to identify persisted workspace/source records."""
-    selected_paths = {
-        artifact.path: (case_dir / artifact.path).resolve()
-        for artifact in selected.values()
-    }
     if isinstance(anchor, str):
-        path = _normalise_workspace_path(case_dir, anchor)
-        return (
-            anchor in selected_paths
-            and path is not None
-            and path.is_file()
-            and path == selected_paths[anchor]
-        )
+        return anchor in persisted_paths
 
     if anchor.artifact:
-        path = _normalise_workspace_path(case_dir, anchor.artifact)
-        if path is None or not path.is_file():
-            return False
-        if (
-            anchor.artifact not in selected_paths
-            or path != selected_paths[anchor.artifact]
-        ):
+        if anchor.artifact not in persisted_paths:
             return False
     if anchor.source_id or anchor.locator:
         if not (anchor.source_id or "").strip() or not (anchor.locator or "").strip():
@@ -537,36 +556,40 @@ def _resolve_source_anchor(
     return bool(anchor.artifact or anchor.source_id)
 
 
-def _iter_json_objects(value: object):
-    if isinstance(value, dict):
-        yield value
-        for child in value.values():
-            yield from _iter_json_objects(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from _iter_json_objects(child)
-
-
 def _prior_art_disclosure_keys(content: str) -> set[tuple[str, str]]:
     try:
         value = json.loads(content)
     except json.JSONDecodeError as exc:
         raise ValueError("prior-art artifact must contain valid JSON") from exc
-    keys: set[tuple[str, str]] = set()
-    for item in _iter_json_objects(value):
-        document_id = item.get("document_id") or item.get("publication_number")
-        disclosure_anchor = (
-            item.get("disclosure_anchor")
-            or item.get("anchor")
-            or item.get("disclosure_location")
+    if not isinstance(value, dict):
+        raise ValueError("prior-art artifact must contain a JSON object")
+    raw_disclosures = value.get("verified_disclosures")
+    if not isinstance(raw_disclosures, list) or not raw_disclosures:
+        raise ValueError(
+            "prior-art artifact must contain nonempty verified_disclosures"
         )
-        if isinstance(document_id, str) and isinstance(disclosure_anchor, str):
-            if document_id.strip() and disclosure_anchor.strip():
-                keys.add((document_id.strip().casefold(), disclosure_anchor.strip()))
-    return keys
+    try:
+        disclosures = TypeAdapter(
+            list[_PersistedPriorArtDisclosure]
+        ).validate_python(raw_disclosures)
+    except ValidationError as exc:
+        raise ValueError(
+            "prior-art verified_disclosures must contain eligible verified records"
+        ) from exc
+    return {
+        (
+            disclosure.document_id.strip().casefold(),
+            disclosure.disclosure_anchor.strip(),
+        )
+        for disclosure in disclosures
+    }
 
 
-def _validate_upstream_artifact_content(contents: dict[str, str]) -> None:
+def _validate_upstream_artifact_content(
+    case_dir: Path,
+    case: PatentCase,
+    contents: dict[str, str],
+) -> None:
     eligible_statuses = {
         "claim-feature-map": {"ready", "completed"},
         "drawing-plan": {"ready", "completed"},
@@ -587,10 +610,27 @@ def _validate_upstream_artifact_content(contents: dict[str, str]) -> None:
             if status_value in {"blocked", "no-text", "placeholder"}:
                 raise ValueError(f"{artifact_type} artifact is blocked")
             raise ValueError(f"{artifact_type} artifact has ineligible status")
-        if not isinstance(value.get("source_anchors"), list):
+        raw_anchors = value.get("source_anchors")
+        if not isinstance(raw_anchors, list):
             raise ValueError(
                 f"{artifact_type} artifact must contain a source_anchors list"
             )
+        if not raw_anchors:
+            raise ValueError(f"{artifact_type} source_anchors must be nonempty")
+        try:
+            anchors = TypeAdapter(list[SourceAnchor]).validate_python(raw_anchors)
+        except ValidationError as exc:
+            raise ValueError(
+                f"{artifact_type} source_anchors must follow the source-anchor schema"
+            ) from exc
+        persisted_paths = _persisted_artifact_paths(case_dir, case.artifacts)
+        for anchor in anchors:
+            if not _resolve_source_anchor(case, persisted_paths, anchor):
+                raise ValueError(
+                    f"{artifact_type} upstream source anchor does not resolve to "
+                    "a current persisted workspace/source record"
+                )
+    _prior_art_disclosure_keys(contents["prior-art"])
 
 
 def _validate_quality_review_provenance(
@@ -601,13 +641,16 @@ def _validate_quality_review_provenance(
     review: _CompletedQualityReview,
 ) -> None:
     referenced_artifacts: set[str] = set()
+    selected_paths = _persisted_artifact_paths(
+        case_dir, list(artifacts.values())
+    )
 
     def check_anchor(anchor: SourceAnchor) -> None:
         if isinstance(anchor, _SourceAnchor) and anchor.artifact:
             referenced_artifacts.add(anchor.artifact)
         elif isinstance(anchor, str):
             referenced_artifacts.add(anchor)
-        if not _resolve_source_anchor(case_dir, case, artifacts, anchor):
+        if not _resolve_source_anchor(case, selected_paths, anchor):
             raise ValueError(
                 "quality-review provenance anchor does not resolve to persisted "
                 "workspace/source record"
@@ -813,7 +856,7 @@ def export_application(
         artifact_type: _read_artifact(case_dir, artifact_type, artifact)
         for artifact_type, artifact in artifacts.items()
     }
-    _validate_upstream_artifact_content(contents)
+    _validate_upstream_artifact_content(case_dir, case, contents)
     review = _quality_review_report(
         contents["quality-review"], artifacts["quality-review"].version
     )

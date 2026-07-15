@@ -10,15 +10,18 @@ Package an approved, current Chinese invention-patent or utility-model applicati
 ## Inputs
 
 - `claims-vN.md`
+- `claim-feature-map-vN.json`
 - `specification-vN.md`
 - `abstract-vN.md`
+- `drawing-plan-vN.json`
+- `prior-art-vN.json`
 - `quality-review-vN.json`
 
-`final-delivery` is a workflow-state approval, not a file artifact. Require its current value to cover the exact artifact versions and the export action.
+`final-delivery` is a workflow-state approval, not a file artifact. Require its current value to cover all seven current input versions, their provenance dependencies, and the export action.
 
 ## Workflow
 
-1. Resolve the exact version `N` requested for export and inspect the four inputs without changing them.
+1. Resolve the exact version `N` requested for export and inspect all seven inputs without changing them.
 2. Evaluate every row of the Export Eligibility Contract from actual workspace state and actual file content. Treat an unknown, unavailable, or not-assessable delivery-critical fact as a failed gate.
 3. Select exactly one Output Mode Contract row. Never issue duplicate or conflicting ready/blocked decisions.
 4. If any gate fails, follow the Blocked Output Recipe and stop. Do not invoke an exporter or create any DOCX representation.
@@ -30,10 +33,10 @@ Package an approved, current Chinese invention-patent or utility-model applicati
 
 | gate | actual condition | decision |
 | --- | --- | --- |
-| `input_set` | all four inputs exist, are readable, current, non-stale, mutually version-matched, and identify the same approved application set | `required` |
+| `input_set` | all seven inputs exist, are readable, current, non-stale, mutually version-matched, provenance-resolved, and identify the same approved application set | `required` |
 | `substantive_text` | claims, specification, and abstract contain substantive final review text, not blocked, no-text, or placeholder artifacts | `required` |
 | `quality_review` | the current completed review covers the exact input versions, recommends ready-for-human-review, has zero open critical/high issues, and has no unresolved delivery-blocking support, dependency, subject-matter, unity, or prior-art issue | `required` |
-| `final_delivery` | a current final-delivery approval explicitly covers the exact versions and export action; promised, oral, managerial, future, back-signed, placeholder, or version-unspecified approval is invalid | `required` |
+| `final_delivery` | a current final-delivery approval explicitly covers all seven exact versions and the export action; promised, oral, managerial, future, back-signed, placeholder, or version-unspecified approval is invalid | `required` |
 | `export_path` | the designated deterministic exporter and required DOCX template are actually available and complete successfully | `required` |
 
 Any failed gate requires blocked mode. Authority, urgency, deadline, or customer pressure cannot convert a failed or unknown gate into ready status.
@@ -90,7 +93,7 @@ Create `application-vN.docx` only after every eligibility gate passes and the de
 
 Create `delivery-checklist-vN.md` with structured fields for:
 
-- export status and exact input versions;
+- export status, all seven current input versions and provenance dependencies;
 - readability, stale, version-match, and application-set checks;
 - quality-review completion, recommendation, open critical/high counts, and delivery-blocking issue status;
 - final-delivery approval ID, status, scope, and currentness;
@@ -117,13 +120,13 @@ Do not name a DOCX as created, attach sample application content, include base64
 
 ## Stop Conditions
 
-Stop in blocked mode when any required input is missing, unreadable, stale, version-mismatched, internally inconsistent, or non-substantive; when review coverage is absent, stale, incomplete, not ready, or has an open delivery-blocking issue; when current scoped final approval is absent; or when the deterministic exporter/template is absent or fails.
+Stop in blocked mode when any of the seven required inputs is missing, unreadable, stale, version-mismatched, internally inconsistent, provenance-unresolved, or non-substantive; when review coverage is absent, stale, incomplete, not ready, or has an open delivery-blocking issue; when current seven-version scoped final approval is absent; or when the deterministic exporter/template is absent or fails.
 
 Stop after producing the allowed mode-specific outputs. Never continue to filing, submission, email, upload, external delivery, archiving, billing, CRM, or another format.
 
 ## Quality Checks
 
-- Confirm exactly four file inputs and treat final-delivery solely as current workflow state.
+- Confirm exactly seven file inputs and treat final-delivery solely as current workflow state.
 - Confirm blocked mode has exactly one checklist, `docx_generated: false`, and `no DOCX generated`, with no DOCX placeholder or simulated content.
 - Confirm ready mode has exactly one verified DOCX plus exactly one checklist.
 - Compare the exported application content against approved source text without silently correcting it.

@@ -2930,8 +2930,11 @@ def _assert_no_document_export_semantic_bypass(body: str) -> None:
 def _assert_document_export_body_contract(body: str) -> None:
     expected_inputs = {
         "claims-vN.md",
+        "claim-feature-map-vN.json",
         "specification-vN.md",
         "abstract-vN.md",
+        "drawing-plan-vN.json",
+        "prior-art-vN.json",
         "quality-review-vN.json",
     }
     expected_outputs = {"application-vN.docx", "delivery-checklist-vN.md"}
@@ -2954,8 +2957,11 @@ def _assert_document_export_body_contract(body: str) -> None:
     inputs = body.split("## Inputs", 1)[1].split("## Workflow", 1)[0]
     assert [line.strip() for line in inputs.splitlines() if line.strip().startswith("- ")] == [
         "- `claims-vN.md`",
+        "- `claim-feature-map-vN.json`",
         "- `specification-vN.md`",
         "- `abstract-vN.md`",
+        "- `drawing-plan-vN.json`",
+        "- `prior-art-vN.json`",
         "- `quality-review-vN.json`",
     ]
     assert _artifact_tokens(inputs) == expected_inputs
@@ -2974,7 +2980,7 @@ def _assert_document_export_body_contract(body: str) -> None:
     )
     assert eligibility == {
         "input_set": (
-            "all four inputs exist, are readable, current, non-stale, mutually version-matched, and identify the same approved application set",
+            "all seven inputs exist, are readable, current, non-stale, mutually version-matched, provenance-resolved, and identify the same approved application set",
             "required",
         ),
         "substantive_text": (
@@ -2986,7 +2992,7 @@ def _assert_document_export_body_contract(body: str) -> None:
             "required",
         ),
         "final_delivery": (
-            "a current final-delivery approval explicitly covers the exact versions and export action; promised, oral, managerial, future, back-signed, placeholder, or version-unspecified approval is invalid",
+            "a current final-delivery approval explicitly covers all seven exact versions and the export action; promised, oral, managerial, future, back-signed, placeholder, or version-unspecified approval is invalid",
             "required",
         ),
         "export_path": (
@@ -3036,6 +3042,8 @@ def _assert_document_export_body_contract(body: str) -> None:
         "record actual verification results",
         "exporter and template identity",
         "final-delivery approval ID, status, scope, and currentness",
+        "all seven current input versions and provenance dependencies",
+        "Confirm exactly seven file inputs",
         "human final review is still required",
         "no filing or external submission occurred",
         "unresolved questions and source anchors",
