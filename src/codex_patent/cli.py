@@ -1,12 +1,11 @@
 from pathlib import Path
 
 import typer
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, StrictBool, ValidationError
 
 from codex_patent.export_docx import export_application
-from codex_patent.models import ArtifactRef, PatentCase
+from codex_patent.models import PatentCase
 from codex_patent.repository import CaseRepository
-from codex_patent.validation import ValidationReport
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -15,12 +14,8 @@ app = typer.Typer(no_args_is_help=True)
 class ExportInputPackage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    title: str
-    claims: list[str]
-    sections: dict[str, str]
-    final_approval: bool
-    validation_report: ValidationReport
-    artifacts: list[ArtifactRef]
+    case_dir: Path
+    final_approval: StrictBool
 
 
 @app.callback()
@@ -48,7 +43,7 @@ def export_command(
         exists=True,
         dir_okay=False,
         readable=True,
-        help="UTF-8 JSON export package with explicit approval and guard inputs.",
+        help="UTF-8 JSON export request with case_dir and explicit approval.",
     ),
     output_path: Path = typer.Argument(..., dir_okay=False),
     template: Path | None = typer.Option(
@@ -64,13 +59,9 @@ def export_command(
             input_package.read_text(encoding="utf-8")
         )
         result = export_application(
-            title=package.title,
-            claims=package.claims,
-            sections=package.sections,
+            case_dir=package.case_dir,
             output_path=output_path,
             final_approval=package.final_approval,
-            validation_report=package.validation_report,
-            artifacts=package.artifacts,
             template_path=template,
         )
     except ValidationError as exc:

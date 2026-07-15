@@ -19,6 +19,9 @@ test = ["pytest>=8.2,<9"]
 [project.scripts]
 codex-patent = "codex_patent.cli:app"
 
+[tool.hatch.build.targets.wheel.force-include]
+"templates/cn-patent-application.docx" = "codex_patent/templates/cn-patent-application.docx"
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
