@@ -72,6 +72,7 @@ ARTIFACT_CONTENT = {
                     ],
                 }
             ],
+            "source_anchors": [],
         },
         ensure_ascii=False,
     ),
@@ -958,12 +959,14 @@ def test_export_accepts_consistent_verified_prior_art_assessment(tmp_path: Path)
     prior_art.write_text(
         json.dumps(
             {
+                "status": "completed",
                 "verified_disclosures": [
                     {
                         "document_id": "CN123456789A",
                         "disclosure_anchor": "[0042]-[0045]",
                     }
-                ]
+                ],
+                "source_anchors": [],
             }
         ),
         encoding="utf-8",
@@ -1024,6 +1027,36 @@ def test_export_refuses_missing_quality_review_provenance_artifact(tmp_path: Pat
     output = tmp_path / "application.docx"
 
     with pytest.raises(ValueError, match="claim-feature-map"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_blocked_upstream_provenance_artifact(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    blocked_map = case_dir / _artifact(case, "claim-feature-map").path
+    blocked_map.write_text(
+        json.dumps({"status": "blocked", "source_anchors": []}),
+        encoding="utf-8",
+    )
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="claim-feature-map artifact is blocked"):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
+def test_export_refuses_incomplete_upstream_provenance_artifact(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    incomplete_map = case_dir / _artifact(case, "claim-feature-map").path
+    incomplete_map.write_text(
+        json.dumps({"status": "draft", "source_anchors": []}),
+        encoding="utf-8",
+    )
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="claim-feature-map artifact has ineligible status"):
         export_application(case_dir, output, final_approval=True)
 
     assert not output.exists()

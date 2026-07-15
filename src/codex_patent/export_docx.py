@@ -566,6 +566,33 @@ def _prior_art_disclosure_keys(content: str) -> set[tuple[str, str]]:
     return keys
 
 
+def _validate_upstream_artifact_content(contents: dict[str, str]) -> None:
+    eligible_statuses = {
+        "claim-feature-map": {"ready", "completed"},
+        "drawing-plan": {"ready", "completed"},
+        "prior-art": {"ready", "completed", "completed-with-findings"},
+    }
+    for artifact_type in ("claim-feature-map", "drawing-plan", "prior-art"):
+        try:
+            value = json.loads(contents[artifact_type])
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"{artifact_type} artifact must contain valid JSON"
+            ) from exc
+        if not isinstance(value, dict):
+            raise ValueError(f"{artifact_type} artifact must contain a JSON object")
+        status = value.get("status")
+        status_value = status.casefold() if isinstance(status, str) else ""
+        if status_value not in eligible_statuses[artifact_type]:
+            if status_value in {"blocked", "no-text", "placeholder"}:
+                raise ValueError(f"{artifact_type} artifact is blocked")
+            raise ValueError(f"{artifact_type} artifact has ineligible status")
+        if not isinstance(value.get("source_anchors"), list):
+            raise ValueError(
+                f"{artifact_type} artifact must contain a source_anchors list"
+            )
+
+
 def _validate_quality_review_provenance(
     case_dir: Path,
     case: PatentCase,
@@ -786,6 +813,7 @@ def export_application(
         artifact_type: _read_artifact(case_dir, artifact_type, artifact)
         for artifact_type, artifact in artifacts.items()
     }
+    _validate_upstream_artifact_content(contents)
     review = _quality_review_report(
         contents["quality-review"], artifacts["quality-review"].version
     )
