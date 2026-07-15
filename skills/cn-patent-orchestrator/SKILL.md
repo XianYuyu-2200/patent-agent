@@ -43,6 +43,16 @@ Choose one row supported by the current case state and save only that skill's de
 | Quality review | `cn-patent-quality-review` | `quality-review-vN.json`, `support-matrix-vN.json` |
 | Delivery | `patent-document-export` | `application-vN.docx`, `delivery-checklist-vN.md` |
 
+## Golden-Case Regression
+
+Use this protocol only for an explicitly named anonymized golden-case fixture:
+
+1. Read `case.json` as the sole case input. Do not read `expected-review.json` before saving the independent review output.
+2. Apply the normal domain routing, production-skill contract, fact-status rules, source anchors, and approval gates. Do not relax or replace the live workflow because the input is a fixture.
+3. Save the independent review with stable rule, severity, affected claim or fact identifier, unresolved question, delivery decision, and next allowed action. An `unsupported-feature` or `business-only` high-severity issue blocks export.
+4. Only after the independent output is fixed, read `expected-review.json` and compare stable rule, severity, affected identifier, and whether the issue blocks export. Do not require prose to match word for word and do not overwrite the independent output with the oracle.
+5. Record the anonymized prompt, emitted artifact, detected difference, and any resulting Skill change. Never record customer, applicant, inventor, filing, dataset, or deployment identity.
+
 ## Outputs
 
 - Updated `case.json` with preserved approvals, current stage, artifact references, and stale state.

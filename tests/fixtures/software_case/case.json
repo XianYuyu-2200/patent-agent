@@ -1,0 +1,153 @@
+{
+  "fixture_version": "1.0",
+  "anonymization": "Synthetic identifiers and generalized technical details; no applicant, inventor, customer, dataset, or deployment identity.",
+  "case": {
+    "case_id": "GOLDEN-SW-001",
+    "title": "设备振动异常控制方法",
+    "stage": "mining",
+    "technical_domain": "software-ai",
+    "facts": [
+      {
+        "fact_id": "S-F001",
+        "statement": "输入数据包括由设备振动传感器采集的时序采样值。",
+        "status": "source-backed",
+        "anchors": [
+          {
+            "source_id": "SRC-S-01",
+            "locator": "步骤S1",
+            "quote": "控制器接收振动传感器按固定采样周期输出的时序值。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "S-F002",
+        "statement": "处理器对采样值执行窗口化、频域变换和异常分量判定。",
+        "status": "source-backed",
+        "anchors": [
+          {
+            "source_id": "SRC-S-01",
+            "locator": "步骤S2-S4",
+            "quote": "处理器形成滑动窗口，计算频谱，并将目标频带能量与阈值比较。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "S-F003",
+        "statement": "工业控制器根据异常判定结果向驱动器发送降速指令。",
+        "status": "confirmed",
+        "anchors": [
+          {
+            "source_id": "SRC-S-02",
+            "locator": "控制链段落1",
+            "quote": "异常状态成立时，控制器向电机驱动器发送降速指令。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "S-F004",
+        "statement": "降速控制降低异常振动持续时间并减少设备停机。",
+        "status": "confirmed",
+        "anchors": [
+          {
+            "source_id": "SRC-S-02",
+            "locator": "测试记录表2",
+            "quote": "在相同异常工况下，闭环降速使超阈值振动持续时间下降。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "S-B001",
+        "statement": "根据客户会员等级提高告警服务的计费优先级。",
+        "status": "source-backed",
+        "anchors": [
+          {
+            "source_id": "SRC-S-03",
+            "locator": "运营说明段落1",
+            "quote": "高级会员的告警服务在计费队列中优先。"
+          }
+        ],
+        "final_text_allowed": true
+      }
+    ],
+    "artifacts": [],
+    "issues": [],
+    "approvals": []
+  },
+  "input_data": [
+    {
+      "data_id": "S-D001",
+      "name": "振动时序采样值",
+      "source": "设备振动传感器",
+      "fact_id": "S-F001",
+      "source_anchor": "SRC-S-01#步骤S1"
+    }
+  ],
+  "processing_steps": [
+    {
+      "step_id": "S-P001",
+      "action": "对采样值形成滑动窗口",
+      "input": "S-D001",
+      "output": "窗口数据",
+      "fact_id": "S-F002"
+    },
+    {
+      "step_id": "S-P002",
+      "action": "计算窗口数据的频谱并判定异常分量",
+      "input": "窗口数据",
+      "output": "异常判定结果",
+      "fact_id": "S-F002"
+    },
+    {
+      "step_id": "S-P003",
+      "action": "根据异常判定结果生成降速指令",
+      "input": "异常判定结果",
+      "output": "降速指令",
+      "fact_id": "S-F003"
+    }
+  ],
+  "execution_context": {
+    "hardware": {
+      "controller": "工业控制器",
+      "sensor": "振动传感器",
+      "actuator_interface": "电机驱动器",
+      "fact_ids": [
+        "S-F001",
+        "S-F003"
+      ]
+    },
+    "controlled_object": {
+      "object": "受电机驱动的旋转设备",
+      "control_action": "降低电机转速",
+      "feedback": "后续振动时序采样值",
+      "fact_id": "S-F003"
+    }
+  },
+  "technical_effects": [
+    {
+      "effect_id": "S-E001",
+      "effect": "缩短超阈值振动的持续时间",
+      "causal_fact_ids": [
+        "S-F001",
+        "S-F002",
+        "S-F003",
+        "S-F004"
+      ],
+      "source_anchor": "SRC-S-02#测试记录表2"
+    }
+  ],
+  "business_only_statement": {
+    "fact_id": "S-B001",
+    "statement": "根据客户会员等级提高告警服务的计费优先级。",
+    "source_anchor": "SRC-S-03#运营说明段落1"
+  },
+  "technical_contribution_fact_ids": [
+    "S-F001",
+    "S-F002",
+    "S-F003",
+    "S-F004"
+  ]
+}
