@@ -43,9 +43,84 @@ ARTIFACT_CONTENT = {
     "claims": CLAIMS_TEXT,
     "specification": SPECIFICATION_TEXT,
     "abstract": SECTIONS["摘要"],
-    "quality-review": json.dumps({"issues": []}),
 }
 RUNNER = CliRunner()
+
+
+def _official_quality_review(version: int = 2, **overrides: object) -> dict:
+    review = {
+        "review_status": "completed",
+        "input_versions": {
+            "claims": f"v{version}",
+            "claim_feature_map": f"v{version}",
+            "specification": f"v{version}",
+            "abstract": f"v{version}",
+            "drawing_plan": f"v{version}",
+            "prior_art": f"v{version}",
+        },
+        "checks": {
+            check: {
+                "status": "completed",
+                "conclusion_or_gap": "reviewed with no delivery-blocking finding",
+                "source_anchors": [f"{check}-v{version}"],
+            }
+            for check in (
+                "claim_clarity_dependency",
+                "specification_support_sufficiency",
+                "cross_artifact_consistency",
+                "abstract_fidelity",
+                "unity",
+                "subject_matter_technical_solution",
+                "filing_type",
+                "novelty",
+                "inventive_step",
+                "design_around",
+                "form",
+            )
+        },
+        "findings": [],
+        "open_issue_counts": {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+        },
+        "delivery_recommendation": "ready-for-human-review",
+        "unresolved_questions": [],
+        "source_anchors": [
+            f"claims-v{version}.md",
+            f"specification-v{version}.md",
+            f"abstract-v{version}.md",
+        ],
+    }
+    review.update(overrides)
+    return review
+
+
+def _scoped_final_delivery_approval(version: int = 2) -> dict:
+    return {
+        "approval_id": f"FD-TEST-v{version}",
+        "type": "final-delivery",
+        "status": "approved",
+        "current": True,
+        "application_set": f"CN-TEST-001-v{version}",
+        "scope": {
+            "claims": f"v{version}",
+            "specification": f"v{version}",
+            "abstract": f"v{version}",
+            "quality_review": f"v{version}",
+            "action": "DOCX export",
+        },
+    }
+
+
+def _replace_persisted_approvals(case_dir: Path, approvals: list[dict]) -> None:
+    case_path = case_dir / "case.json"
+    data = json.loads(case_path.read_text(encoding="utf-8"))
+    data["approvals"] = approvals
+    case_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def _write_ready_case(
@@ -55,7 +130,7 @@ def _write_ready_case(
     case = PatentCase(
         case_id="CN-TEST-001",
         title="折叠支架",
-        approvals={"final-delivery"},
+        approvals=[_scoped_final_delivery_approval(version=2)],
         artifacts=[
             ArtifactRef(
                 artifact_type=artifact_type,
@@ -69,7 +144,12 @@ def _write_ready_case(
     for artifact_type, relative_path in ARTIFACT_PATHS.items():
         artifact_path = case_dir / relative_path
         artifact_path.parent.mkdir(parents=True, exist_ok=True)
-        artifact_path.write_text(ARTIFACT_CONTENT[artifact_type], encoding="utf-8")
+        content = (
+            json.dumps(_official_quality_review(), ensure_ascii=False)
+            if artifact_type == "quality-review"
+            else ARTIFACT_CONTENT[artifact_type]
+        )
+        artifact_path.write_text(content, encoding="utf-8")
     return repository, case, case_dir
 
 
@@ -345,7 +425,101 @@ def test_export_refuses_invalid_quality_review_json(tmp_path: Path):
         export_application(case_dir, tmp_path / "application.docx", final_approval=True)
 
 
-def test_export_refuses_open_high_issue_from_quality_review_artifact(
+def test_export_accepts_official_completed_quality_review_recipe(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    quality_review.write_text(
+        json.dumps(_official_quality_review(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    output = tmp_path / "application.docx"
+    assert export_application(case_dir, output, final_approval=True) == output
+    assert output.is_file()
+
+
+def test_export_refuses_arbitrary_issues_only_quality_review_schema(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    quality_review.write_text(json.dumps({"issues": []}), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_conflicting_legacy_issues_and_blocked_delivery_state(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    quality_review.write_text(
+        json.dumps(
+            {
+                "issues": [],
+                "review_status": "completed-with-issues",
+                "delivery_recommendation": "blocked",
+                "open_high": 2,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_official_review_with_open_high_finding(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        review_status="completed-with-issues",
+        findings=[
+            {
+                "issue_id": "QCR-SUP-001",
+                "severity": "high",
+                "category": "specification-support",
+                "artifact": "specification-v2.md",
+                "location": "claim 1",
+                "source_anchors": ["specification-v2.md"],
+                "explanation": "claim feature lacks support",
+                "suggested_action": "human review",
+                "blocks_delivery": True,
+            }
+        ],
+        open_issue_counts={"critical": 0, "high": 1, "medium": 0, "low": 0},
+        delivery_recommendation="blocked",
+    )
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="not eligible for export"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_legacy_issues_report_even_when_issue_is_high(
     tmp_path: Path,
 ):
     _, case, case_dir = _write_ready_case(tmp_path)
@@ -366,13 +540,56 @@ def test_export_refuses_open_high_issue_from_quality_review_artifact(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="open high-severity"):
+    with pytest.raises(ValueError, match="official completed output recipe"):
         export_application(
             case_dir,
             tmp_path / "application.docx",
             final_approval=True,
             template_path=tmp_path / "missing-template.docx",
         )
+
+
+def test_export_accepts_existing_scoped_final_delivery_approval_record(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    quality_review.write_text(
+        json.dumps(_official_quality_review(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _replace_persisted_approvals(
+        case_dir, [_scoped_final_delivery_approval(version=2)]
+    )
+
+    output = tmp_path / "application.docx"
+    assert export_application(case_dir, output, final_approval=True) == output
+    assert output.is_file()
+
+
+def test_export_refuses_replaced_v2_artifacts_with_retained_v1_approval(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    quality_review.write_text(
+        json.dumps(_official_quality_review(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _replace_persisted_approvals(
+        case_dir, [_scoped_final_delivery_approval(version=1)]
+    )
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="exact current artifact versions"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
 
 
 def test_workspace_and_explicit_approval_are_required_public_arguments():

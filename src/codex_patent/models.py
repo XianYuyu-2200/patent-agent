@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
 class FactStatus(StrEnum):
@@ -60,6 +60,30 @@ class ReviewIssue(BaseModel):
     closed: bool = False
 
 
+ApprovalName = Literal["technical-solution", "claim-set", "final-delivery"]
+
+
+class ApprovalScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    claims: str = Field(pattern=r"^v[1-9]\d*$")
+    specification: str = Field(pattern=r"^v[1-9]\d*$")
+    abstract: str = Field(pattern=r"^v[1-9]\d*$")
+    quality_review: str = Field(pattern=r"^v[1-9]\d*$")
+    action: Literal["DOCX export"]
+
+
+class ApprovalRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approval_id: str = Field(min_length=1)
+    type: Literal["final-delivery"]
+    status: Literal["approved"]
+    current: StrictBool
+    application_set: str = Field(min_length=1)
+    scope: ApprovalScope
+
+
 class PatentCase(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     case_id: str
@@ -69,6 +93,4 @@ class PatentCase(BaseModel):
     facts: list[TechnicalFact] = Field(default_factory=list)
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     issues: list[ReviewIssue] = Field(default_factory=list)
-    approvals: set[
-        Literal["technical-solution", "claim-set", "final-delivery"]
-    ] = Field(default_factory=set)
+    approvals: list[ApprovalName | ApprovalRecord] = Field(default_factory=list)

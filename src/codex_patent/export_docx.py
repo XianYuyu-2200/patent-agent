@@ -2,11 +2,12 @@ import json
 import re
 from importlib import resources
 from pathlib import Path
+from typing import Literal
 
 from docx import Document
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from codex_patent.models import ArtifactRef, PatentCase
+from codex_patent.models import ApprovalRecord, ArtifactRef, PatentCase
 from codex_patent.repository import CaseRepository
 from codex_patent.validation import ValidationReport
 
@@ -39,6 +40,140 @@ TEMPLATE_PATH = (
     if _PACKAGE_TEMPLATE.is_file()
     else _CHECKOUT_TEMPLATE
 )
+
+QUALITY_CHECK_NAMES = (
+    "claim_clarity_dependency",
+    "specification_support_sufficiency",
+    "cross_artifact_consistency",
+    "abstract_fidelity",
+    "unity",
+    "subject_matter_technical_solution",
+    "filing_type",
+    "novelty",
+    "inventive_step",
+    "design_around",
+    "form",
+)
+
+
+class _StrictReviewModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class _QualityReviewInputVersions(_StrictReviewModel):
+    claims: str = Field(pattern=r"^v[1-9]\d*$")
+    claim_feature_map: str = Field(pattern=r"^v[1-9]\d*$")
+    specification: str = Field(pattern=r"^v[1-9]\d*$")
+    abstract: str = Field(pattern=r"^v[1-9]\d*$")
+    drawing_plan: str = Field(pattern=r"^v[1-9]\d*$")
+    prior_art: str = Field(pattern=r"^v[1-9]\d*$")
+
+
+class _QualityReviewCheck(_StrictReviewModel):
+    status: Literal["completed", "not-assessable", "blocked"]
+    conclusion_or_gap: str = Field(min_length=1)
+    source_anchors: list[str | dict[str, object]]
+
+    @model_validator(mode="after")
+    def require_completed_check_evidence(self):
+        if self.status == "completed" and not self.source_anchors:
+            raise ValueError("completed checks require source anchors")
+        return self
+
+
+class _QualityReviewChecks(_StrictReviewModel):
+    claim_clarity_dependency: _QualityReviewCheck
+    specification_support_sufficiency: _QualityReviewCheck
+    cross_artifact_consistency: _QualityReviewCheck
+    abstract_fidelity: _QualityReviewCheck
+    unity: _QualityReviewCheck
+    subject_matter_technical_solution: _QualityReviewCheck
+    filing_type: _QualityReviewCheck
+    novelty: _QualityReviewCheck
+    inventive_step: _QualityReviewCheck
+    design_around: _QualityReviewCheck
+    form: _QualityReviewCheck
+
+
+class _QualityReviewFinding(_StrictReviewModel):
+    issue_id: str = Field(min_length=1)
+    severity: Literal["critical", "high", "medium", "low"]
+    category: str = Field(min_length=1)
+    artifact: str | None = None
+    claim: str | int | None = None
+    section: str | None = None
+    occurrence_id: str | None = None
+    location: str | None = None
+    source_anchors: list[str | dict[str, object]]
+    explanation: str = Field(min_length=1)
+    suggested_action: str = Field(min_length=1)
+    blocks_delivery: bool
+    evidence_gap: str | None = None
+
+    @model_validator(mode="after")
+    def require_location_and_evidence(self):
+        if not any(
+            value is not None
+            for value in (
+                self.artifact,
+                self.claim,
+                self.section,
+                self.occurrence_id,
+                self.location,
+            )
+        ):
+            raise ValueError("findings require an artifact, claim, section, or location")
+        if not self.source_anchors and not (self.evidence_gap or "").strip():
+            raise ValueError("findings require source anchors or an evidence gap")
+        return self
+
+
+class _OpenIssueCounts(_StrictReviewModel):
+    critical: int = Field(ge=0)
+    high: int = Field(ge=0)
+    medium: int = Field(ge=0)
+    low: int = Field(ge=0)
+    total: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_total(self):
+        observed = self.critical + self.high + self.medium + self.low
+        if self.total is not None and self.total != observed:
+            raise ValueError("open issue total does not match severity counts")
+        return self
+
+
+class _CompletedQualityReview(_StrictReviewModel):
+    review_status: Literal["completed", "completed-with-issues"]
+    input_versions: _QualityReviewInputVersions
+    checks: _QualityReviewChecks
+    findings: list[_QualityReviewFinding]
+    open_issue_counts: _OpenIssueCounts
+    delivery_recommendation: Literal["blocked", "ready-for-human-review"]
+    unresolved_questions: list[str | dict[str, object]]
+    source_anchors: list[str | dict[str, object]]
+    application_set: str | None = None
+    input_integrity: dict[str, object] | None = None
+    prior_art_assessment: dict[str, object] | None = None
+
+    @model_validator(mode="after")
+    def validate_internal_gate_consistency(self):
+        observed_counts = {
+            severity: sum(
+                finding.severity == severity for finding in self.findings
+            )
+            for severity in ("critical", "high", "medium", "low")
+        }
+        persisted_counts = self.open_issue_counts.model_dump(exclude={"total"})
+        if persisted_counts != observed_counts:
+            raise ValueError("open issue counts do not match findings")
+        if self.review_status == "completed" and self.findings:
+            raise ValueError("completed review cannot contain open findings")
+        if self.review_status == "completed-with-issues" and not self.findings:
+            raise ValueError("completed-with-issues review requires findings")
+        if not self.source_anchors:
+            raise ValueError("completed review requires source anchors")
+        return self
 
 
 def _validate_content(title: str, claims: list[str], sections: dict[str, str]) -> None:
@@ -175,7 +310,7 @@ def _parse_specification(content: str) -> dict[str, str]:
     return sections
 
 
-def _quality_review_report(content: str, version: int) -> ValidationReport:
+def _quality_review_report(content: str, version: int) -> _CompletedQualityReview:
     try:
         value = json.loads(content)
     except json.JSONDecodeError as exc:
@@ -184,33 +319,67 @@ def _quality_review_report(content: str, version: int) -> ValidationReport:
         ) from exc
     if not isinstance(value, dict):
         raise ValueError("quality-review artifact must contain a valid JSON object")
-    if "issues" in value:
-        try:
-            return ValidationReport.model_validate(value)
-        except ValidationError as exc:
-            raise ValueError(
-                "quality-review artifact must contain valid review issues"
-            ) from exc
+    try:
+        review = _CompletedQualityReview.model_validate(value)
+    except ValidationError as exc:
+        raise ValueError(
+            "quality-review artifact must follow the official completed output recipe"
+        ) from exc
 
     expected_version = f"v{version}"
-    covered_versions = value.get("covered_versions")
-    ready_skill_review = (
-        value.get("review_status") == "completed"
-        and value.get("current") is True
-        and isinstance(covered_versions, dict)
-        and all(
-            covered_versions.get(artifact_type) == expected_version
-            for artifact_type in ("claims", "specification", "abstract")
+    if any(
+        input_version != expected_version
+        for input_version in review.input_versions.model_dump().values()
+    ):
+        raise ValueError(
+            "quality-review artifact does not cover the exact current artifact versions"
         )
-        and value.get("delivery_recommendation") == "ready-for-human-review"
-        and value.get("open_critical") == 0
-        and value.get("open_high") == 0
-        and value.get("delivery_blocking_issues") == []
-        and value.get("delivery_critical_not_assessable") == []
-    )
-    if not ready_skill_review:
+    if any(
+        getattr(review.checks, check_name).status == "blocked"
+        for check_name in QUALITY_CHECK_NAMES
+    ):
         raise ValueError("quality-review artifact is not eligible for export")
-    return ValidationReport()
+    if (
+        review.delivery_recommendation != "ready-for-human-review"
+        or review.open_issue_counts.critical != 0
+        or review.open_issue_counts.high != 0
+        or any(finding.blocks_delivery for finding in review.findings)
+    ):
+        raise ValueError("quality-review artifact is not eligible for export")
+    return review
+
+
+def _scoped_final_delivery_approval(
+    case: PatentCase,
+    artifacts: dict[str, ArtifactRef],
+) -> ApprovalRecord:
+    approvals = [
+        approval
+        for approval in case.approvals
+        if isinstance(approval, ApprovalRecord)
+        and approval.type == "final-delivery"
+        and approval.status == "approved"
+        and approval.current is True
+    ]
+    if not approvals:
+        raise ValueError("persisted final-delivery approval must be scoped")
+    if len(approvals) != 1:
+        raise ValueError("multiple current final-delivery approvals block export")
+
+    approval = approvals[0]
+    expected_scope = {
+        "claims": f"v{artifacts['claims'].version}",
+        "specification": f"v{artifacts['specification'].version}",
+        "abstract": f"v{artifacts['abstract'].version}",
+        "quality_review": f"v{artifacts['quality-review'].version}",
+        "action": "DOCX export",
+    }
+    if approval.scope.model_dump() != expected_scope:
+        raise ValueError(
+            "final-delivery approval must cover the exact current artifact versions "
+            "and DOCX export action"
+        )
+    return approval
 
 
 def _open_template(template_path: Path | None) -> Document:
@@ -236,8 +405,6 @@ def export_application(
 
     case_dir = Path(case_dir)
     case = _load_case(case_dir)
-    if "final-delivery" not in case.approvals:
-        raise ValueError("persisted final-delivery approval is required")
     validation_report = ValidationReport(issues=case.issues)
     if not validation_report.eligible_for_final_delivery:
         raise ValueError("open high-severity validation issues block export")
@@ -248,15 +415,21 @@ def export_application(
         raise ValueError("stale docx artifact blocks export")
 
     artifacts = _current_required_artifacts(case)
+    approval = _scoped_final_delivery_approval(case, artifacts)
     contents = {
         artifact_type: _read_artifact(case_dir, artifact_type, artifact)
         for artifact_type, artifact in artifacts.items()
     }
-    review_report = _quality_review_report(
+    review = _quality_review_report(
         contents["quality-review"], artifacts["quality-review"].version
     )
-    if not review_report.eligible_for_final_delivery:
-        raise ValueError("open high-severity validation issues block export")
+    if (
+        review.application_set is not None
+        and review.application_set != approval.application_set
+    ):
+        raise ValueError(
+            "final-delivery approval does not cover the reviewed application set"
+        )
     claims = _parse_claims(contents["claims"])
     sections = _parse_specification(contents["specification"])
     sections["摘要"] = contents["abstract"].strip()
