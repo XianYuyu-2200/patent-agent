@@ -1001,6 +1001,34 @@ def test_export_accepts_consistent_verified_prior_art_assessment(tmp_path: Path)
     assert output.is_file()
 
 
+def test_export_refuses_eligible_persisted_disclosure_omitted_from_review(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    prior_art = case_dir / _artifact(case, "prior-art").path
+    value = json.loads(prior_art.read_text(encoding="utf-8"))
+    value["verified_disclosures"].append(
+        {
+            "status": "eligible",
+            "document_id": "CN-SECOND-ELIGIBLE",
+            "disclosure_anchor": "[0100]-[0104]",
+        }
+    )
+    prior_art.write_text(json.dumps(value), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"missing from review: cn-second-eligible @ "
+            r"\[0100\]-\[0104\]"
+        ),
+    ):
+        export_application(case_dir, output, final_approval=True)
+
+    assert not output.exists()
+
+
 def test_export_accepts_persisted_cross_artifact_provenance(tmp_path: Path):
     """All six review inputs and the prior-art disclosure resolve in the case."""
     _, _, case_dir = _write_ready_case(tmp_path)
@@ -1157,7 +1185,10 @@ def test_export_refuses_synthetic_prior_art_reference(tmp_path: Path):
             "CN-SYNTHETIC"
         )
     quality_review.write_text(json.dumps(review), encoding="utf-8")
-    with pytest.raises(ValueError, match="prior-art"):
+    with pytest.raises(
+        ValueError,
+        match=r"extra in review: cn-synthetic @ \[0042\]-\[0045\]",
+    ):
         export_application(case_dir, output, final_approval=True)
 
     assert not output.exists()

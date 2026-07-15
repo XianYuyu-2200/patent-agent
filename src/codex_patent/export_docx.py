@@ -676,16 +676,35 @@ def _validate_quality_review_provenance(
             + ", ".join(missing)
         )
 
-    disclosure_keys = _prior_art_disclosure_keys(contents["prior-art"])
-    for disclosure in review.prior_art_assessment.verified_disclosures:
-        key = (
+    persisted_disclosure_keys = _prior_art_disclosure_keys(
+        contents["prior-art"]
+    )
+    review_disclosure_keys = {
+        (
             disclosure.document_id.strip().casefold(),
             disclosure.disclosure_anchor.strip(),
         )
-        if key not in disclosure_keys:
-            raise ValueError(
-                "verified prior-art disclosure does not resolve to a persisted prior-art record"
+        for disclosure in review.prior_art_assessment.verified_disclosures
+    }
+    if review_disclosure_keys != persisted_disclosure_keys:
+        missing = sorted(persisted_disclosure_keys - review_disclosure_keys)
+        extra = sorted(review_disclosure_keys - persisted_disclosure_keys)
+
+        def describe(keys: list[tuple[str, str]]) -> str:
+            return (
+                ", ".join(
+                    f"{document_id} @ {anchor}"
+                    for document_id, anchor in keys
+                )
+                or "none"
             )
+
+        raise ValueError(
+            "quality-review verified_disclosures do not exactly match eligible "
+            "persisted prior-art disclosures; "
+            f"missing from review: {describe(missing)}; "
+            f"extra in review: {describe(extra)}"
+        )
 
 
 def _parse_claims(content: str) -> list[str]:
