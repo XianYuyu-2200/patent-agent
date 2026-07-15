@@ -10,11 +10,28 @@
         "F-002",
         "F-003"
       ],
-      "terms": {
-        "T-001": "底座",
-        "T-002": "支撑臂",
-        "T-003": "转轴"
-      }
+      "term_occurrences": [
+        {
+          "occurrence_id": "C1-T-001-1",
+          "term_id": "T-001",
+          "rendered": "底座"
+        },
+        {
+          "occurrence_id": "C1-T-002-1",
+          "term_id": "T-002",
+          "rendered": "支撑臂"
+        },
+        {
+          "occurrence_id": "C1-T-003-1",
+          "term_id": "T-003",
+          "rendered": "转轴"
+        }
+      ],
+      "required_term_ids": [
+        "T-001",
+        "T-002",
+        "T-003"
+      ]
     },
     {
       "claim": 2,
@@ -25,11 +42,28 @@
       "features": [
         "F-004"
       ],
-      "terms": {
-        "T-001": "底座",
-        "T-002": "支撑臂",
-        "T-004": "锁止销"
-      }
+      "term_occurrences": [
+        {
+          "occurrence_id": "C2-T-001-1",
+          "term_id": "T-001",
+          "rendered": "底座"
+        },
+        {
+          "occurrence_id": "C2-T-002-1",
+          "term_id": "T-002",
+          "rendered": "支撑臂"
+        },
+        {
+          "occurrence_id": "C2-T-004-1",
+          "term_id": "T-004",
+          "rendered": "锁止销"
+        }
+      ],
+      "required_term_ids": [
+        "T-001",
+        "T-002",
+        "T-004"
+      ]
     }
   ],
   "supported_fact_ids": [
