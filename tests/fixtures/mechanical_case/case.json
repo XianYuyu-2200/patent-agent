@@ -70,8 +70,8 @@
     {
       "relationship_id": "M-R002",
       "subject": "弹性定位件",
-      "relation": "在展开位置与定位槽配合",
-      "object": "支撑臂",
+      "relation": "进入并与定位槽配合",
+      "object": "定位槽",
       "fact_id": "M-F002",
       "source_anchor": "SRC-M-01#段落3"
     }

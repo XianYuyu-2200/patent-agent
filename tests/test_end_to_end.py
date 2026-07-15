@@ -36,6 +36,19 @@ def _emitted_forward_artifacts(case_name: str) -> list[dict]:
     return [json.loads(block) for block in blocks]
 
 
+def _fact_and_anchor(data: dict, fact_id: str, source_anchor: str) -> tuple[dict, dict]:
+    fact = next(
+        fact for fact in data["case"]["facts"] if fact["fact_id"] == fact_id
+    )
+    source_id, locator = source_anchor.split("#", maxsplit=1)
+    anchor = next(
+        anchor
+        for anchor in fact["anchors"]
+        if anchor["source_id"] == source_id and anchor["locator"] == locator
+    )
+    return fact, anchor
+
+
 def test_mechanical_golden_case_blocks_unsupported_feature_and_export():
     data = _fixture("mechanical_case", "case.json")
     expected = _fixture("mechanical_case", "expected-review.json")
@@ -85,6 +98,26 @@ def test_mechanical_golden_case_blocks_unsupported_feature_and_export():
         advance_case(blocked_delivery, CaseStage.DELIVERY)
 
 
+def test_mechanical_relationship_fields_match_their_cited_fact_and_anchor():
+    data = _fixture("mechanical_case", "case.json")
+    relationship = next(
+        relationship
+        for relationship in data["component_relationships"]
+        if relationship["relationship_id"] == "M-R002"
+    )
+    fact, anchor = _fact_and_anchor(
+        data, relationship["fact_id"], relationship["source_anchor"]
+    )
+
+    assert relationship["subject"] == "弹性定位件"
+    assert relationship["relation"] == "进入并与定位槽配合"
+    assert relationship["object"] == "定位槽"
+    assert relationship["subject"] in fact["statement"]
+    assert relationship["subject"] in anchor["quote"]
+    assert relationship["object"] in fact["statement"]
+    assert relationship["object"] in anchor["quote"]
+
+
 def test_software_golden_case_keeps_business_rule_out_of_technical_contribution():
     data = _fixture("software_case", "case.json")
     expected = _fixture("software_case", "expected-review.json")
@@ -94,7 +127,8 @@ def test_software_golden_case_keeps_business_rule_out_of_technical_contribution(
     assert data["input_data"]
     assert data["processing_steps"]
     assert data["execution_context"]["hardware"]
-    assert data["execution_context"]["controlled_object"]
+    assert data["execution_context"]["control_command"]
+    assert data["execution_context"]["unresolved_controlled_object"]
     assert data["technical_effects"]
 
     business_issue = next(
@@ -113,6 +147,30 @@ def test_software_golden_case_keeps_business_rule_out_of_technical_contribution(
     assert effect_fact["final_text_allowed"] is True
     assert "停机" not in effect_fact["statement"]
     assert all("停机" not in anchor.get("quote", "") for anchor in effect_fact["anchors"])
+
+
+def test_software_execution_context_only_finalizes_the_cited_control_command():
+    data = _fixture("software_case", "case.json")
+    context = data["execution_context"]
+    command = context["control_command"]
+    unresolved = context["unresolved_controlled_object"]
+    fact, anchor = _fact_and_anchor(
+        data, command["fact_id"], command["source_anchor"]
+    )
+
+    assert "controlled_object" not in context
+    assert command == {
+        "action": "向电机驱动器发送降速指令",
+        "fact_id": "S-F003",
+        "source_anchor": "SRC-S-02#控制链段落1",
+        "final_text_allowed": True,
+    }
+    assert command["action"] in anchor["quote"]
+    assert "向驱动器发送降速指令" in fact["statement"]
+    assert unresolved["object"] is None
+    assert unresolved["feedback"] is None
+    assert unresolved["status"] == "unresolved"
+    assert unresolved["final_text_allowed"] is False
 
 
 def test_golden_cases_preserve_technical_solution_claim_set_and_delivery_gates():
@@ -217,3 +275,17 @@ def test_golden_case_forward_artifacts_match_stable_findings_without_oracle_leak
                 assert issue["fact_status"] == "source-backed"
                 assert issue["source_anchors"] == ["SRC-S-03#运营说明段落1"]
                 assert "停机" not in encoded
+                assert "受电机驱动的旋转设备" not in encoded
+                assert "旋转设备控制" not in encoded
+                if assessment := artifact.get("technical_solution_assessment"):
+                    assert assessment["conclusion"] == (
+                        "振动传感器采样—窗口化和频域判定—向电机驱动器发送降速指令—"
+                        "缩短超阈值振动持续时间形成来源可追溯的技术链。"
+                    )
+                    assert artifact["unresolved_context"] == {
+                        "fact_id": "S-F003",
+                        "supported_statement": "向电机驱动器发送降速指令",
+                        "unresolved_fields": ["controlled_object", "feedback"],
+                        "status": "unresolved",
+                        "final_text_allowed": False,
+                    }

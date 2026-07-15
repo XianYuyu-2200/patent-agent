@@ -119,11 +119,20 @@
         "S-F003"
       ]
     },
-    "controlled_object": {
-      "object": "受电机驱动的旋转设备",
-      "control_action": "降低电机转速",
-      "feedback": "后续振动时序采样值",
-      "fact_id": "S-F003"
+    "control_command": {
+      "action": "向电机驱动器发送降速指令",
+      "fact_id": "S-F003",
+      "source_anchor": "SRC-S-02#控制链段落1",
+      "final_text_allowed": true
+    },
+    "unresolved_controlled_object": {
+      "object": null,
+      "feedback": null,
+      "status": "unresolved",
+      "final_text_allowed": false,
+      "supported_fact_id": "S-F003",
+      "supported_source_anchor": "SRC-S-02#控制链段落1",
+      "question": "请提供受控对象身份以及后续振动采样是否构成反馈的直接来源。"
     }
   },
   "technical_effects": [

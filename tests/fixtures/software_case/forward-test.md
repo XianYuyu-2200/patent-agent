@@ -68,7 +68,14 @@ PASS. Without reading `expected-review.json`, the baseline separated the source-
   "technical_solution_assessment": {
     "status": "source-backed-but-not-approved",
     "technical_contribution_fact_ids": ["S-F001", "S-F002", "S-F003", "S-F004"],
-    "conclusion": "振动传感器采样—窗口化和频域判定—降速指令—旋转设备控制—缩短超阈值振动持续时间形成来源可追溯的技术链。"
+    "conclusion": "振动传感器采样—窗口化和频域判定—向电机驱动器发送降速指令—缩短超阈值振动持续时间形成来源可追溯的技术链。"
+  },
+  "unresolved_context": {
+    "fact_id": "S-F003",
+    "supported_statement": "向电机驱动器发送降速指令",
+    "unresolved_fields": ["controlled_object", "feedback"],
+    "status": "unresolved",
+    "final_text_allowed": false
   },
   "open_issue_counts": {"critical": 0, "high": 1, "medium": 0, "low": 0},
   "delivery_decision": {
@@ -86,7 +93,7 @@ PASS. Without reading `expected-review.json`, the baseline separated the source-
 
 ## Forward result
 
-PASS. The fresh task independently matched the stable `business-only` rule, high severity, S-B001 identifier, technical-chain separation, no-fabrication requirement, and export block. `expected-review.json` was not used as an input.
+PASS. The fresh task independently matched the stable `business-only` rule, high severity, S-B001 identifier, technical-chain separation, no-fabrication requirement, and export block. The traceable control statement is limited to sending a slowdown command to the motor driver; controlled-object identity and feedback remain unresolved and unavailable for final text. `expected-review.json` was not used as an input.
 
 ## Resulting Skill change
 
