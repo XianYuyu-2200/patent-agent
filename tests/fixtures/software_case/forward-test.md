@@ -14,12 +14,14 @@ No customer, applicant, inventor, filing, dataset, or deployment identity is pre
   "review_status": "needs-clarification",
   "technical_contribution": {
     "fact_ids": ["S-F001", "S-F002", "S-F003", "S-F004"],
-    "summary": "采集设备振动时序，经滑动窗口与频域处理判定异常分量，控制器向电机驱动器发送降速指令，以缩短超阈值振动持续时间并减少停机。"
+    "summary": "采集设备振动时序，经滑动窗口与频域处理判定异常分量，控制器向电机驱动器发送降速指令，以缩短超阈值振动持续时间。"
   },
   "business_only": {
     "fact_id": "S-B001",
     "classification": "business-only",
     "severity": "high",
+    "fact_status": "source-backed",
+    "source_anchors": ["SRC-S-03#运营说明段落1"],
     "disposition": "exclude from technical contribution/claim scope",
     "reason": "会员等级决定告警服务计费优先级，不改变 sensing/processing/control mechanism"
   },
@@ -55,6 +57,9 @@ PASS. Without reading `expected-review.json`, the baseline separated the source-
       "severity": "high",
       "fact_id": "S-B001",
       "statement": "根据客户会员等级提高告警服务的计费优先级。",
+      "fact_status": "source-backed",
+      "final_text_allowed": true,
+      "source_anchors": ["SRC-S-03#运营说明段落1"],
       "explanation": "会员等级、计费队列和服务优先级属于经营规则；现有材料未显示其参与振动采集、频域处理、异常判定、设备控制或技术效果的因果链。",
       "suggested_action": "将 S-B001 隔离为非技术业务事实，不得作为技术贡献、必要技术特征或技术效果；不得补造硬件或算法关联。",
       "blocks_export": true

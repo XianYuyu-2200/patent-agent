@@ -1,9 +1,10 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-from codex_patent.models import CaseStage, PatentCase
+from codex_patent.models import CaseStage, PatentCase, ReviewIssue
 from codex_patent.validation import (
     validate_claim_support,
     validate_drawing_reference_numerals,
@@ -20,6 +21,19 @@ def _fixture(case_name: str, file_name: str) -> dict:
     return json.loads(
         (FIXTURES / case_name / file_name).read_text(encoding="utf-8")
     )
+
+
+def _emitted_forward_artifacts(case_name: str) -> list[dict]:
+    record = (FIXTURES / case_name / "forward-test.md").read_text(
+        encoding="utf-8"
+    )
+    blocks = re.findall(
+        r"## (?:Baseline|Forward) emitted artifact\n\n```json\n(.*?)\n```",
+        record,
+        flags=re.DOTALL,
+    )
+    assert len(blocks) == 2
+    return [json.loads(block) for block in blocks]
 
 
 def test_mechanical_golden_case_blocks_unsupported_feature_and_export():
@@ -92,6 +106,14 @@ def test_software_golden_case_keeps_business_rule_out_of_technical_contribution(
     assert business_issue["fact_id"] not in data["technical_contribution_fact_ids"]
     assert expected["blocks_export"] is True
 
+    effect_fact = next(
+        fact for fact in data["case"]["facts"] if fact["fact_id"] == "S-F004"
+    )
+    assert effect_fact["status"] == "source-backed"
+    assert effect_fact["final_text_allowed"] is True
+    assert "停机" not in effect_fact["statement"]
+    assert all("停机" not in anchor.get("quote", "") for anchor in effect_fact["anchors"])
+
 
 def test_golden_cases_preserve_technical_solution_claim_set_and_delivery_gates():
     data = _fixture("mechanical_case", "case.json")
@@ -106,11 +128,17 @@ def test_golden_cases_preserve_technical_solution_claim_set_and_delivery_gates()
     with pytest.raises(WorkflowError, match="claim-set"):
         advance_case(claims_case, CaseStage.DRAFTING)
 
-    orchestrator = (
-        ROOT / "skills" / "cn-patent-orchestrator" / "SKILL.md"
-    ).read_text(encoding="utf-8")
-    for gate in ("technical-solution", "claim-set", "final-delivery"):
-        assert gate in orchestrator
+    blocked_delivery = case.model_copy(deep=True)
+    blocked_delivery.stage = CaseStage.REVIEW
+    blocked_delivery.issues = [
+        ReviewIssue(
+            issue_id="golden-high",
+            severity="high",
+            message="seeded unsupported feature",
+        )
+    ]
+    with pytest.raises(WorkflowError, match="open high-severity"):
+        advance_case(blocked_delivery, CaseStage.DELIVERY)
 
 
 def test_orchestrator_defines_independent_golden_case_acceptance_protocol():
@@ -146,3 +174,46 @@ def test_golden_case_forward_records_are_anonymized_and_complete():
             assert heading in record
         assert "expected-review.json" in record
         assert "No customer, applicant, inventor, filing, dataset, or deployment identity" in record
+
+
+def test_golden_case_forward_artifacts_match_stable_findings_without_oracle_leakage():
+    expected_stable = {
+        "mechanical_case": ("unsupported-feature", "high", "M-F999"),
+        "software_case": ("business-only", "high", "S-B001"),
+    }
+    for case_name, (rule, severity, affected_id) in expected_stable.items():
+        artifacts = _emitted_forward_artifacts(case_name)
+        for artifact in artifacts:
+            encoded = json.dumps(artifact, ensure_ascii=False)
+            assert "expected-review.json" not in encoded
+            assert "MECH-HIGH-001" not in encoded
+            assert "SOFT-HIGH-001" not in encoded
+            candidates = list(artifact.get("issues", []))
+            if artifact.get("business_only"):
+                candidates.append(
+                    {
+                        **artifact["business_only"],
+                        "rule": artifact["business_only"].get("classification"),
+                    }
+                )
+            issue = next(
+                issue
+                for issue in candidates
+                if issue.get("rule") == rule
+                or issue.get("fact_id") == affected_id
+                or issue.get("feature_id") == affected_id
+            )
+            assert issue.get("rule") == rule
+            assert issue["severity"] == severity
+            assert issue.get("fact_id", issue.get("feature_id")) == affected_id
+            assert issue.get("blocks_export") is True or artifact.get(
+                "delivery_export", {}
+            ).get("allowed") is False
+            if case_name == "mechanical_case":
+                assert issue["fact_status"] == "inferred"
+                assert issue["source_anchors"] == []
+                assert issue["final_text_allowed"] is False
+            else:
+                assert issue["fact_status"] == "source-backed"
+                assert issue["source_anchors"] == ["SRC-S-03#运营说明段落1"]
+                assert "停机" not in encoded

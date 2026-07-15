@@ -48,8 +48,8 @@
       },
       {
         "fact_id": "S-F004",
-        "statement": "降速控制降低异常振动持续时间并减少设备停机。",
-        "status": "confirmed",
+        "statement": "降速控制降低异常振动持续时间。",
+        "status": "source-backed",
         "anchors": [
           {
             "source_id": "SRC-S-02",

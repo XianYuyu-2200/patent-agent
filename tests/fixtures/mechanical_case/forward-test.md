@@ -63,6 +63,9 @@ PASS. Without reading `expected-review.json`, the baseline named `unsupported-fe
       "feature_id": "M-F999",
       "fact_id": "M-F999",
       "statement": "定位件包含磁吸锁止结构。",
+      "fact_status": "inferred",
+      "final_text_allowed": false,
+      "source_anchors": [],
       "explanation": "M-F999 appears in claim 1 and final_fact_ids, but is absent from supported_fact_ids. Its status is inferred, it has no source anchors, and final_text_allowed is false.",
       "blocks_export": true
     }
