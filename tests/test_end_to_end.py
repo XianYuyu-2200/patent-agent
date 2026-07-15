@@ -264,9 +264,7 @@ def test_golden_case_forward_artifacts_match_stable_findings_without_oracle_leak
             assert issue.get("rule") == rule
             assert issue["severity"] == severity
             assert issue.get("fact_id", issue.get("feature_id")) == affected_id
-            assert issue.get("blocks_export") is True or artifact.get(
-                "delivery_export", {}
-            ).get("allowed") is False
+            assert issue.get("blocks_export") is True
             if case_name == "mechanical_case":
                 assert issue["fact_status"] == "inferred"
                 assert issue["source_anchors"] == []
@@ -277,6 +275,29 @@ def test_golden_case_forward_artifacts_match_stable_findings_without_oracle_leak
                 assert "停机" not in encoded
                 assert "受电机驱动的旋转设备" not in encoded
                 assert "旋转设备控制" not in encoded
+                assert artifact["unresolved_questions"] == [
+                    {
+                        "question_id": "Q-S-CONTEXT-001",
+                        "question": (
+                            "请提供受控对象身份以及后续振动采样是否构成反馈的直接来源。"
+                        ),
+                        "fact_id": "S-F003",
+                        "source_anchor": "SRC-S-02#控制链段落1",
+                    }
+                ]
+                delivery = artifact["delivery_decision"]
+                assert delivery["allowed"] is False
+                assert delivery["blocks_export"] is True
+                assert any(
+                    "S-B001" in reason and "business-only" in reason
+                    for reason in delivery["reasons"]
+                )
+                next_action = artifact["next_allowed_action"]
+                assert next_action["stage"] == "mining"
+                assert next_action["production_skill"] == "patent-invention-mining"
+                assert "S-B001" in next_action["action"]
+                assert "受控对象" in next_action["action"]
+                assert "反馈" in next_action["action"]
                 if assessment := artifact.get("technical_solution_assessment"):
                     assert assessment["conclusion"] == (
                         "振动传感器采样—窗口化和频域判定—向电机驱动器发送降速指令—"

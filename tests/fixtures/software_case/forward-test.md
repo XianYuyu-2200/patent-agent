@@ -23,19 +23,37 @@ No customer, applicant, inventor, filing, dataset, or deployment identity is pre
     "fact_status": "source-backed",
     "source_anchors": ["SRC-S-03#运营说明段落1"],
     "disposition": "exclude from technical contribution/claim scope",
-    "reason": "会员等级决定告警服务计费优先级，不改变 sensing/processing/control mechanism"
+    "reason": "会员等级决定告警服务计费优先级，不改变 sensing/processing/control mechanism",
+    "blocks_export": true
   },
-  "delivery_export": {
+  "unresolved_questions": [
+    {
+      "question_id": "Q-S-CONTEXT-001",
+      "question": "请提供受控对象身份以及后续振动采样是否构成反馈的直接来源。",
+      "fact_id": "S-F003",
+      "source_anchor": "SRC-S-02#控制链段落1"
+    }
+  ],
+  "delivery_decision": {
     "allowed": false,
-    "reason": "mining-stage review has unresolved implementation/enablement and effect-evidence questions"
+    "blocks_export": true,
+    "reasons": [
+      "open high-severity business-only issue S-B001",
+      "受控对象身份和反馈关系仍缺少直接来源",
+      "案件仍处于 mining 且没有 final-delivery 批准"
+    ]
   },
-  "next_allowed_action": "Obtain engineering clarifications and source anchors, then rerun review before claim drafting or export."
+  "next_allowed_action": {
+    "stage": "mining",
+    "production_skill": "patent-invention-mining",
+    "action": "Keep S-B001 outside the technical contribution, obtain direct source evidence for the 受控对象 identity and 反馈 relationship, then rerun review before export."
+  }
 }
 ```
 
 ## Baseline result
 
-PASS. Without reading `expected-review.json`, the baseline separated the source-backed sensor-processing-control chain from S-B001, classified S-B001 as `business-only` with high severity, excluded it from technical contribution, and refused export. No behavioral failure was detected.
+PASS. Without reading `expected-review.json`, the baseline separated the source-backed sensor-processing-control chain from S-B001, classified S-B001 as `business-only` with high severity and `blocks_export: true`, preserved the source-grounded controlled-object/feedback question, excluded the rule from technical contribution, and refused export because the high issue remains open. No behavioral failure was detected.
 
 ## Forward prompt
 
@@ -77,23 +95,31 @@ PASS. Without reading `expected-review.json`, the baseline separated the source-
     "status": "unresolved",
     "final_text_allowed": false
   },
+  "unresolved_questions": [
+    {
+      "question_id": "Q-S-CONTEXT-001",
+      "question": "请提供受控对象身份以及后续振动采样是否构成反馈的直接来源。",
+      "fact_id": "S-F003",
+      "source_anchor": "SRC-S-02#控制链段落1"
+    }
+  ],
   "open_issue_counts": {"critical": 0, "high": 1, "medium": 0, "low": 0},
   "delivery_decision": {
     "allowed": false,
     "blocks_export": true,
-    "reasons": ["开放的 high business-only 问题", "案件仍处于 mining", "尚无 final-delivery 批准"]
+    "reasons": ["开放的 high business-only 问题 S-B001", "案件仍处于 mining", "尚无 final-delivery 批准"]
   },
   "next_allowed_action": {
     "stage": "mining",
     "production_skill": "patent-invention-mining",
-    "action": "保留 S-F001 至 S-F004 的来源锚点，将 S-B001 隔离为非技术业务事实，并把实现缺口写入访谈问题。"
+    "action": "保留 S-F001 至 S-F004 的来源锚点，将 S-B001 隔离为非技术业务事实，并将受控对象身份和反馈关系的来源缺口写入访谈问题。"
   }
 }
 ```
 
 ## Forward result
 
-PASS. The fresh task independently matched the stable `business-only` rule, high severity, S-B001 identifier, technical-chain separation, no-fabrication requirement, and export block. The traceable control statement is limited to sending a slowdown command to the motor driver; controlled-object identity and feedback remain unresolved and unavailable for final text. `expected-review.json` was not used as an input.
+PASS. The fresh task independently matched the stable `business-only` rule, high severity, S-B001 identifier, issue-level export block, technical-chain separation, no-fabrication requirement, explicit controlled-object/feedback question, blocked delivery decision, and mining-stage next action. The traceable control statement is limited to sending a slowdown command to the motor driver; controlled-object identity and feedback remain unresolved and unavailable for final text. `expected-review.json` was not used as an input.
 
 ## Resulting Skill change
 
