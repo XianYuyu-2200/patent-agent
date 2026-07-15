@@ -1,5 +1,6 @@
 import inspect
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -159,6 +160,49 @@ def _artifact(case: PatentCase, artifact_type: str) -> ArtifactRef:
         for artifact in case.artifacts
         if artifact.artifact_type == artifact_type
     )
+
+
+def _write_application_section(
+    case: PatentCase,
+    case_dir: Path,
+    heading: str,
+    content: str,
+) -> None:
+    sections = dict(SECTIONS)
+    sections[heading] = content
+    if heading == "摘要":
+        abstract = case_dir / _artifact(case, "abstract").path
+        abstract.write_text(content, encoding="utf-8")
+        return
+
+    specification = case_dir / _artifact(case, "specification").path
+    specification.write_text(
+        "\n\n".join(
+            value
+            for section_heading in SECTION_ORDER[:-1]
+            for value in (section_heading, sections[section_heading])
+        ),
+        encoding="utf-8",
+    )
+
+
+def _assert_protected_output_is_refused_and_preserved(
+    case_dir: Path,
+    protected_path: Path,
+    *,
+    template_path: Path | None = None,
+) -> None:
+    original_bytes = protected_path.read_bytes()
+    try:
+        with pytest.raises(ValueError, match="protected"):
+            export_application(
+                case_dir,
+                protected_path,
+                final_approval=True,
+                template_path=template_path,
+            )
+    finally:
+        assert protected_path.read_bytes() == original_bytes
 
 
 def _export_kwargs(tmp_path: Path) -> dict:
@@ -438,6 +482,74 @@ def test_export_accepts_official_completed_quality_review_recipe(tmp_path: Path)
     assert output.is_file()
 
 
+@pytest.mark.parametrize(
+    "artifact_type",
+    ("claims", "specification", "abstract", "quality-review"),
+)
+def test_export_refuses_output_collision_with_current_artifact_and_preserves_bytes(
+    tmp_path: Path,
+    artifact_type: str,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    protected_path = case_dir / _artifact(case, artifact_type).path
+
+    _assert_protected_output_is_refused_and_preserved(case_dir, protected_path)
+
+
+def test_export_refuses_output_collision_with_case_json_and_preserves_bytes(
+    tmp_path: Path,
+):
+    _, _, case_dir = _write_ready_case(tmp_path)
+
+    _assert_protected_output_is_refused_and_preserved(
+        case_dir, case_dir / "case.json"
+    )
+
+
+def test_export_refuses_resolved_output_alias_and_preserves_bytes(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    claims = case_dir / _artifact(case, "claims").path
+    alias = claims.parent / ".." / claims.parent.name / claims.name
+
+    _assert_protected_output_is_refused_and_preserved(case_dir, alias)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="case-insensitive alias is Windows-specific")
+def test_export_refuses_case_insensitive_output_alias_and_preserves_bytes(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    claims = case_dir / _artifact(case, "claims").path
+    alias = claims.with_name(claims.name.upper())
+
+    _assert_protected_output_is_refused_and_preserved(case_dir, alias)
+
+
+def test_export_refuses_output_collision_with_source_material_and_preserves_bytes(
+    tmp_path: Path,
+):
+    _, _, case_dir = _write_ready_case(tmp_path)
+    source = case_dir / "source-materials" / "customer-source.docx"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_bytes(b"customer source bytes must remain immutable")
+
+    _assert_protected_output_is_refused_and_preserved(case_dir, source)
+
+
+def test_export_refuses_output_collision_with_active_template_and_preserves_bytes(
+    tmp_path: Path,
+):
+    _, _, case_dir = _write_ready_case(tmp_path)
+    template = tmp_path / "active-template.docx"
+    template.write_bytes(TEMPLATE_PATH.read_bytes())
+
+    _assert_protected_output_is_refused_and_preserved(
+        case_dir,
+        template,
+        template_path=template,
+    )
+
+
 def test_export_refuses_arbitrary_issues_only_quality_review_schema(tmp_path: Path):
     _, case, case_dir = _write_ready_case(tmp_path)
     quality_review = case_dir / _artifact(case, "quality-review").path
@@ -584,6 +696,256 @@ def test_export_refuses_empty_structured_source_anchor(tmp_path: Path):
     output = tmp_path / "application.docx"
 
     with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("anchor_location", ("top-level", "novelty-check"))
+def test_export_refuses_blank_overlap_source_anchor(
+    tmp_path: Path,
+    anchor_location: str,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review()
+    if anchor_location == "top-level":
+        review["source_anchors"] = [{"overlap": [""]}]
+    else:
+        review["checks"]["novelty"]["source_anchors"] = [
+            {"overlap": [""]}
+        ]
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+def test_export_refuses_structurally_empty_verified_disclosure(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        prior_art_assessment={
+            "verified_disclosures": [{}],
+            "novelty_risk": [
+                {"claim": "C1", "level": "none", "basis": "no overlap"}
+            ],
+            "inventive_step_risk": [
+                {"claim": "C1", "level": "none", "basis": "no overlap"}
+            ],
+        }
+    )
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            tmp_path / "application.docx",
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+
+def test_export_refuses_completed_prior_art_checks_without_verified_disclosure(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        prior_art_assessment={
+            "verified_disclosures": [],
+            "novelty_risk": [
+                {"claim": "C1", "level": "none", "basis": "none found"}
+            ],
+            "inventive_step_risk": [
+                {"claim": "C1", "level": "none", "basis": "none found"}
+            ],
+        }
+    )
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            tmp_path / "application.docx",
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+
+@pytest.mark.parametrize(
+    ("check_name", "risk_name"),
+    (("novelty", "novelty_risk"), ("inventive_step", "inventive_step_risk")),
+)
+def test_export_refuses_completed_check_for_not_assessable_prior_art_risk(
+    tmp_path: Path,
+    check_name: str,
+    risk_name: str,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        prior_art_assessment={
+            "verified_disclosures": [
+                {
+                    "document_id": "CN123456789A",
+                    "disclosure_anchor": "[0042]-[0045]",
+                    "disclosure": "verified disclosure",
+                    "overlapping_features": ["F1"],
+                }
+            ],
+            "novelty_risk": [
+                {"claim": "C1", "level": "low", "basis": "limited overlap"}
+            ],
+            "inventive_step_risk": [
+                {"claim": "C1", "level": "low", "basis": "limited overlap"}
+            ],
+        }
+    )
+    review["prior_art_assessment"][risk_name] = [
+        {"claim": "C1", "level": "not-assessable", "gap": "missing evidence"}
+    ]
+    review["checks"][check_name] = {
+        "status": "completed",
+        "conclusion_or_gap": "missing evidence was treated as completed",
+        "source_anchors": [{"evidence_gap": "missing evidence"}],
+    }
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            tmp_path / "application.docx",
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+
+def test_export_refuses_completed_prior_art_checks_with_only_evidence_gaps(
+    tmp_path: Path,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    review = _official_quality_review(
+        prior_art_assessment={
+            "verified_disclosures": [],
+            "novelty_risk": [
+                {"claim": "C1", "level": "not-assessable", "gap": "no evidence"}
+            ],
+            "inventive_step_risk": [
+                {"claim": "C1", "level": "not-assessable", "gap": "no evidence"}
+            ],
+        }
+    )
+    for check_name in ("novelty", "inventive_step"):
+        review["checks"][check_name] = {
+            "status": "completed",
+            "conclusion_or_gap": "no evidence was supplied",
+            "source_anchors": [{"evidence_gap": "no evidence was supplied"}],
+        }
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="official completed output recipe"):
+        export_application(
+            case_dir,
+            tmp_path / "application.docx",
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+
+def test_export_accepts_consistent_verified_prior_art_assessment(tmp_path: Path):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    quality_review = case_dir / _artifact(case, "quality-review").path
+    disclosure_anchor = {
+        "artifact": "prior-art-v2.json",
+        "document_id": "CN123456789A",
+        "disclosure_anchor": "[0042]-[0045]",
+        "overlap": ["F1"],
+    }
+    review = _official_quality_review(
+        prior_art_assessment={
+            "verified_disclosures": [
+                {
+                    "document_id": "CN123456789A",
+                    "disclosure_anchor": "[0042]-[0045]",
+                    "disclosure": "verified disclosure",
+                    "overlapping_features": ["F1"],
+                }
+            ],
+            "novelty_risk": [
+                {"claim": "C1", "level": "low", "basis": "limited overlap"}
+            ],
+            "inventive_step_risk": [
+                {"claim": "C1", "level": "low", "basis": "limited overlap"}
+            ],
+        }
+    )
+    for check_name in ("novelty", "inventive_step"):
+        review["checks"][check_name]["source_anchors"] = [disclosure_anchor]
+    quality_review.write_text(json.dumps(review), encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    assert export_application(case_dir, output, final_approval=True) == output
+    assert output.is_file()
+
+
+PLACEHOLDER_TEXTS = (
+    "TODO",
+    "placeholder",
+    "...",
+    "……",
+    "待确认",
+    "[待补充权利要求]",
+)
+
+
+@pytest.mark.parametrize("placeholder", PLACEHOLDER_TEXTS)
+def test_export_refuses_placeholder_claim_text(
+    tmp_path: Path,
+    placeholder: str,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    claims = case_dir / _artifact(case, "claims").path
+    claims.write_text(placeholder, encoding="utf-8")
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match="placeholder claim"):
+        export_application(
+            case_dir,
+            output,
+            final_approval=True,
+            template_path=tmp_path / "missing-template.docx",
+        )
+
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("heading", SECTION_ORDER)
+@pytest.mark.parametrize("placeholder", PLACEHOLDER_TEXTS)
+def test_export_refuses_placeholder_required_section_text(
+    tmp_path: Path,
+    heading: str,
+    placeholder: str,
+):
+    _, case, case_dir = _write_ready_case(tmp_path)
+    _write_application_section(case, case_dir, heading, placeholder)
+    output = tmp_path / "application.docx"
+
+    with pytest.raises(ValueError, match=f"placeholder.*{heading}"):
         export_application(
             case_dir,
             output,

@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from importlib import resources
 from pathlib import Path
@@ -54,6 +55,11 @@ QUALITY_CHECK_NAMES = (
     "design_around",
     "form",
 )
+PLACEHOLDER_PATTERNS = (
+    re.compile(r"\b(?:todo|tbd|placeholder)\b", re.IGNORECASE),
+    re.compile(r"待(?:补充|确认|完善|定)"),
+    re.compile(r"(?:\.{3,}|…+)"),
+)
 
 
 class _StrictReviewModel(BaseModel):
@@ -82,6 +88,10 @@ class _SourceAnchor(_StrictReviewModel):
 
     @model_validator(mode="after")
     def require_meaningful_anchor(self):
+        if self.overlap is not None and (
+            not self.overlap or any(not value.strip() for value in self.overlap)
+        ):
+            raise ValueError("source anchor overlap entries must be nonblank")
         text_values = (
             self.artifact,
             self.anchor,
@@ -197,8 +207,30 @@ class _PriorArtRisk(_StrictReviewModel):
     gap: str | None = None
 
 
+class _VerifiedDisclosure(_StrictReviewModel):
+    document_id: str
+    disclosure_anchor: str
+    disclosure: str | None = None
+    overlapping_features: list[str] | None = None
+
+    @model_validator(mode="after")
+    def require_exact_disclosure_identity(self):
+        if not self.document_id.strip() or not self.disclosure_anchor.strip():
+            raise ValueError(
+                "verified disclosures require a document ID and exact disclosure anchor"
+            )
+        if self.disclosure is not None and not self.disclosure.strip():
+            raise ValueError("verified disclosure text must not be blank")
+        if self.overlapping_features is not None and (
+            not self.overlapping_features
+            or any(not feature.strip() for feature in self.overlapping_features)
+        ):
+            raise ValueError("overlapping feature identifiers must be nonblank")
+        return self
+
+
 class _PriorArtAssessment(_StrictReviewModel):
-    verified_disclosures: list[dict[str, object]]
+    verified_disclosures: list[_VerifiedDisclosure]
     novelty_risk: list[_PriorArtRisk]
     inventive_step_risk: list[_PriorArtRisk]
 
@@ -235,11 +267,54 @@ class _CompletedQualityReview(_StrictReviewModel):
         if not self.source_anchors:
             raise ValueError("completed review requires source anchors")
         if self.prior_art_assessment is not None:
+            assessment = self.prior_art_assessment
+            if not assessment.verified_disclosures:
+                raise ValueError(
+                    "completed prior-art assessment requires verified disclosures"
+                )
+            verified_anchors = {
+                (
+                    disclosure.document_id.strip().casefold(),
+                    disclosure.disclosure_anchor.strip(),
+                )
+                for disclosure in assessment.verified_disclosures
+            }
+            for check_name, risk_name in (
+                ("novelty", "novelty_risk"),
+                ("inventive_step", "inventive_step_risk"),
+            ):
+                check = getattr(self.checks, check_name)
+                risks = getattr(assessment, risk_name)
+                if not risks:
+                    raise ValueError(
+                        f"{check_name} assessment requires a claim-level risk result"
+                    )
+                if any(risk.level == "not-assessable" for risk in risks):
+                    if check.status == "completed":
+                        raise ValueError(
+                            f"{check_name} cannot be completed when a risk is not-assessable"
+                        )
+                    continue
+                if check.status == "completed":
+                    check_anchors = {
+                        (
+                            anchor.document_id.strip().casefold(),
+                            anchor.disclosure_anchor.strip(),
+                        )
+                        for anchor in check.source_anchors
+                        if isinstance(anchor, _SourceAnchor)
+                        and (anchor.document_id or "").strip()
+                        and (anchor.disclosure_anchor or "").strip()
+                    }
+                    if not check_anchors.intersection(verified_anchors):
+                        raise ValueError(
+                            f"completed {check_name} check requires verified prior-art evidence"
+                        )
             unreported_high_risk = any(
                 risk.level == "high"
                 for risk in (
-                    self.prior_art_assessment.novelty_risk
-                    + self.prior_art_assessment.inventive_step_risk
+                    assessment.novelty_risk
+                    + assessment.inventive_step_risk
                 )
             ) and not any(
                 finding.severity in {"critical", "high"}
@@ -256,11 +331,54 @@ def _validate_content(title: str, claims: list[str], sections: dict[str, str]) -
         raise ValueError("application title must not be blank")
     if not claims or any(not claim.strip() for claim in claims):
         raise ValueError("at least one claim is required and claims must not be blank")
+    for claim in claims:
+        if _contains_placeholder(claim):
+            raise ValueError("placeholder claim text blocks export")
     for heading in SECTION_ORDER:
         if heading not in sections:
             raise ValueError(f"missing required section: {heading}")
         if not sections[heading].strip():
             raise ValueError(f"required section must not be blank: {heading}")
+        if _contains_placeholder(sections[heading]):
+            raise ValueError(
+                f"placeholder required section text blocks export: {heading}"
+            )
+
+
+def _contains_placeholder(text: str) -> bool:
+    value = text.strip()
+    if not any(character.isalnum() for character in value):
+        return True
+    return any(pattern.search(value) for pattern in PLACEHOLDER_PATTERNS)
+
+
+def _paths_alias(left: Path, right: Path) -> bool:
+    try:
+        left_resolved = left.resolve(strict=False)
+        right_resolved = right.resolve(strict=False)
+    except OSError as exc:
+        raise ValueError("unable to validate export output path") from exc
+    if os.path.normcase(str(left_resolved)) == os.path.normcase(str(right_resolved)):
+        return True
+    try:
+        return left.exists() and right.exists() and os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
+def _validate_output_path(
+    case_dir: Path,
+    case: PatentCase,
+    output_path: Path,
+    template_path: Path | None,
+) -> Path:
+    output_path = Path(output_path)
+    protected_paths = [path for path in case_dir.rglob("*") if path.is_file()]
+    protected_paths.extend(case_dir / artifact.path for artifact in case.artifacts)
+    protected_paths.append(Path(template_path) if template_path else TEMPLATE_PATH)
+    if any(_paths_alias(output_path, protected) for protected in protected_paths):
+        raise ValueError("output path collides with a protected case or template path")
+    return output_path
 
 
 def _load_case(case_dir: Path) -> PatentCase:
@@ -486,6 +604,12 @@ def export_application(
 
     case_dir = Path(case_dir)
     case = _load_case(case_dir)
+    output_path = _validate_output_path(
+        case_dir,
+        case,
+        Path(output_path),
+        template_path,
+    )
     validation_report = ValidationReport(issues=case.issues)
     if not validation_report.eligible_for_final_delivery:
         raise ValueError("open high-severity validation issues block export")
@@ -528,7 +652,6 @@ def export_application(
         for block in re.split(r"\n\s*\n", sections[heading]):
             if block.strip():
                 document.add_paragraph(block.strip(), style="Patent Body")
-    output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     document.save(output_path)
     return output_path
