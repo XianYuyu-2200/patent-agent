@@ -1,0 +1,18 @@
+{
+  "fixture_version": "1.0",
+  "case_id": "GOLDEN-SW-001",
+  "review_status": "blocked",
+  "blocks_export": true,
+  "issues": [
+    {
+      "issue_id": "SOFT-HIGH-001",
+      "rule": "business-only",
+      "severity": "high",
+      "fact_id": "S-B001",
+      "statement": "根据客户会员等级提高告警服务的计费优先级。",
+      "technical_gap": "The statement defines commercial queue priority but no technical problem, processing mechanism, hardware interaction, controlled-object behavior, or technical effect.",
+      "required_action": "Keep the statement outside the protectable technical contribution and return to invention mining if the customer asserts an additional technical mechanism."
+    }
+  ],
+  "next_allowed_action": "Continue only with the source-backed sensor-processing-control chain; do not draft the business rule as a technical contribution."
+}

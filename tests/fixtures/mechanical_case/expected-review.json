@@ -1,0 +1,19 @@
+{
+  "fixture_version": "1.0",
+  "case_id": "GOLDEN-MECH-001",
+  "review_status": "blocked",
+  "blocks_export": true,
+  "issues": [
+    {
+      "issue_id": "MECH-HIGH-001",
+      "rule": "unsupported-feature",
+      "severity": "high",
+      "claim": 1,
+      "feature_id": "M-F999",
+      "statement": "定位件包含磁吸锁止结构。",
+      "evidence_gap": "No confirmed or source-backed anchor supports a magnetic locking structure.",
+      "required_action": "Ask whether a magnetic locking structure is actually implemented and obtain a source anchor before claim or final-text use."
+    }
+  ],
+  "next_allowed_action": "Return to invention mining and ask the recorded unsupported-feature question."
+}

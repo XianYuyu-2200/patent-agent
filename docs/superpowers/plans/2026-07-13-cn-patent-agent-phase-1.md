@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a locally usable Codex patent-production agent with nine core skills, two domain packs, structured case state, evidence traceability, workflow gates, deterministic quality checks, and DOCX export for Chinese invention patents and utility models.
+**Goal:** Build a locally usable Codex patent-production agent with one orchestration skill, nine production skills, two domain packs, structured case state, evidence traceability, workflow gates, deterministic quality checks, and DOCX export for Chinese invention patents and utility models.
 
 **Architecture:** Package the product as a Codex plugin whose orchestrator reads and writes a versioned case workspace. Markdown skills perform judgment-heavy patent work; Python modules enforce case schemas, workflow transitions, evidence rules, consistency checks, and document export. Phase 2, the Web case-management system, starts only after Phase 1 passes real-case quality acceptance and receives its own specification and plan.
 
@@ -28,9 +28,8 @@
 codex-patent/
 ├── .codex-plugin/
 │   └── plugin.json
-├── agents/
-│   └── cn-patent-orchestrator.md
 ├── skills/
+│   ├── cn-patent-orchestrator/
 │   ├── cn-patent-case-intake/
 │   ├── patent-invention-mining/
 │   ├── patent-prior-art-search/
@@ -96,8 +95,10 @@ def test_plugin_manifest_and_skill_roots_exist():
     manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "codex-patent"
     assert manifest["version"] == "0.1.0"
-    assert manifest["skills"] == ["./skills"]
-    assert manifest["agents"] == ["./agents"]
+    assert manifest["skills"] == "./skills/"
+    assert manifest["author"]["name"] == "XianYuyu-2200"
+    assert manifest["interface"]["displayName"] == "中国专利撰写 Agent"
+    assert manifest["interface"]["category"] == "Productivity"
 ```
 
 - [ ] **Step 2: Run the test and verify the scaffold is absent**
@@ -106,7 +107,15 @@ Run: `python -m pytest tests/test_plugin_contract.py -v`
 
 Expected: FAIL with `FileNotFoundError` for `.codex-plugin/plugin.json`.
 
-- [ ] **Step 3: Create the minimal project metadata**
+- [ ] **Step 3: Generate the plugin scaffold, then create the project metadata**
+
+Run the official plugin scaffold into a temporary parent directory so the existing repository remains the plugin root:
+
+```text
+python C:/Users/xiany/.codex/skills/.system/plugin-creator/scripts/create_basic_plugin.py codex-patent --path .plugin-scaffold --with-skills
+```
+
+Copy the generated `.codex-plugin/plugin.json` structure into the repository root, then remove `.plugin-scaffold`. Preserve the scaffold's supported schema and use these exact values:
 
 Create `.codex-plugin/plugin.json`:
 
@@ -115,8 +124,25 @@ Create `.codex-plugin/plugin.json`:
   "name": "codex-patent",
   "version": "0.1.0",
   "description": "Chinese patent production workflow for invention patents and utility models.",
-  "skills": ["./skills"],
-  "agents": ["./agents"]
+  "author": {
+    "name": "XianYuyu-2200",
+    "url": "https://github.com/XianYuyu-2200"
+  },
+  "repository": "https://github.com/XianYuyu-2200/patent-agent",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "中国专利撰写 Agent",
+    "shortDescription": "面向中国发明专利和实用新型的专业撰写工作流",
+    "longDescription": "整理客户材料，完成发明挖掘、检索、保护策略、权利要求、说明书、质量审查和文档导出。",
+    "developerName": "XianYuyu-2200",
+    "category": "Productivity",
+    "capabilities": ["Write", "Analysis"],
+    "defaultPrompt": [
+      "整理当前客户材料并建立专利案件。",
+      "分析当前案件的发明点并生成追问清单。",
+      "根据已确认方案起草中国专利申请文件。"
+    ]
+  }
 }
 ```
 
@@ -192,6 +218,10 @@ Expected: installation completes without dependency resolution errors.
 Run: `python -m pytest tests/test_plugin_contract.py -v`
 
 Expected: PASS.
+
+Run: `python C:/Users/xiany/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .`
+
+Expected: validator exits 0.
 
 Run: `codex-patent version`
 
@@ -464,14 +494,35 @@ git commit -m "feat: add versioned case workspace"
 ```python
 import pytest
 
-from codex_patent.models import ArtifactRef, CaseStage, PatentCase
+from codex_patent.models import ArtifactRef, CaseStage, PatentCase, ReviewIssue
 from codex_patent.workflow import WorkflowError, advance_case, invalidate_after_claim_change
 
 
-def test_claims_require_technical_solution_approval():
-    case = PatentCase(case_id="C1", title="支架", stage=CaseStage.STRATEGY)
+def test_search_requires_technical_solution_approval():
+    case = PatentCase(case_id="C1", title="支架", stage=CaseStage.MINING)
     with pytest.raises(WorkflowError, match="technical-solution"):
-        advance_case(case, CaseStage.CLAIMS)
+        advance_case(case, CaseStage.SEARCH)
+
+
+def test_drafting_requires_claim_set_approval():
+    case = PatentCase(case_id="C1", title="支架", stage=CaseStage.CLAIMS)
+    with pytest.raises(WorkflowError, match="claim-set"):
+        advance_case(case, CaseStage.DRAFTING)
+
+
+def test_delivery_blocks_open_high_issues_without_requiring_final_approval():
+    case = PatentCase(
+        case_id="C1",
+        title="支架",
+        stage=CaseStage.REVIEW,
+        issues=[ReviewIssue(issue_id="R-1", severity="high", message="缺少支持")],
+    )
+    with pytest.raises(WorkflowError, match="open high-severity"):
+        advance_case(case, CaseStage.DELIVERY)
+
+    case.issues[0].closed = True
+    advance_case(case, CaseStage.DELIVERY)
+    assert case.stage == CaseStage.DELIVERY
 
 
 def test_claim_change_invalidates_drafting_and_review():
@@ -505,9 +556,8 @@ class WorkflowError(ValueError):
 
 
 REQUIRED_APPROVAL = {
-    CaseStage.CLAIMS: "technical-solution",
+    CaseStage.SEARCH: "technical-solution",
     CaseStage.DRAFTING: "claim-set",
-    CaseStage.DELIVERY: "final-delivery",
 }
 
 
@@ -532,7 +582,7 @@ def invalidate_after_claim_change(case: PatentCase) -> PatentCase:
 
 Run: `python -m pytest tests/test_workflow.py -v`
 
-Expected: 2 passed.
+Expected: 4 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -541,12 +591,14 @@ git add src/codex_patent/workflow.py tests/test_workflow.py
 git commit -m "feat: enforce patent workflow gates"
 ```
 
-### Task 5: Create the Orchestrator and Nine Core Skill Contracts
+### Task 5: Create the Orchestrator Skill and Nine Production Skill Contracts
+
+**Execution rule:** Implement this task as ten sequential reviewed sub-tasks: Task 5A `cn-patent-orchestrator`, then Tasks 5B–5J in the production-skill order listed below. For each sub-task, run a fresh baseline scenario without the skill, record the failure, create only that one skill, run the same scenario with the skill, validate its folder, commit, and complete task-level review before creating the next skill. Do not batch-create multiple skills.
 
 **Files:**
-- Create: `agents/cn-patent-orchestrator.md`
-- Create: `skills/*/SKILL.md` for all nine core skills
-- Create: `skills/*/agents/openai.yaml` for all nine core skills
+- Create: `skills/cn-patent-orchestrator/SKILL.md`
+- Create: `skills/*/SKILL.md` for all nine production skills
+- Create: `skills/*/agents/openai.yaml` for the orchestrator and all nine production skills
 - Modify: `tests/test_plugin_contract.py`
 
 **Interfaces:**
@@ -560,6 +612,7 @@ import yaml
 
 
 REQUIRED_SKILLS = {
+    "cn-patent-orchestrator",
     "cn-patent-case-intake",
     "patent-invention-mining",
     "patent-prior-art-search",
@@ -590,14 +643,22 @@ def test_all_core_skills_have_valid_frontmatter():
 
 Run: `python -m pytest tests/test_plugin_contract.py -v`
 
-Expected: FAIL showing the nine missing skill names.
+Expected: FAIL showing the ten missing skill names.
 
 - [ ] **Step 3: Create the orchestrator contract**
 
-The orchestrator file must contain these executable rules:
+The orchestrator `SKILL.md` must contain valid YAML frontmatter and these executable rules:
 
 ```markdown
+---
+name: cn-patent-orchestrator
+description: Orchestrate a Chinese patent case across intake, invention mining, prior-art search, patentability analysis, claim strategy, claims, specification, quality review, and document export. Use when Codex needs to start, resume, route, approve, invalidate, or inspect an end-to-end patent case workflow.
+---
+
 # Chinese Patent Orchestrator
+
+## Inputs
+Named case workspace containing `case.json`.
 
 Operate only on a named case workspace. Read `case.json` before every stage.
 Call exactly one production skill at a time and save its output before proceeding.
@@ -605,6 +666,12 @@ Never promote inferred, missing, or conflicted facts into final drafting inputs.
 Require approvals named `technical-solution`, `claim-set`, and `final-delivery` at their workflow gates.
 After a material claim change, mark specification, review, and DOCX artifacts stale.
 Stop and ask for human action when a skill reports a stop condition.
+
+## Outputs
+Updated case state, routed artifact, unresolved questions, and next allowed action.
+
+## Stop Conditions
+Missing case workspace, invalid case state, missing approval, conflicting facts, or a production skill stop condition.
 ```
 
 - [ ] **Step 4: Create every core `SKILL.md` with an explicit artifact contract**
@@ -625,11 +692,13 @@ Use the following exact contracts. Every file contains `Inputs`, `Workflow`, `Ou
 
 Every skill stops on missing required inputs, conflicting source material, an unanchored conclusion, absent required approval, or an attempt to use `inferred`, `missing`, or `conflicted` facts as final text. `cn-claim-drafting` additionally stops when a claimed feature lacks a feature-tree identifier. `patent-document-export` additionally stops on stale artifacts or open high-severity issues.
 
+**Task 5J-only forward exception:** 2026-07-14 spec-owner approval records a scoped exception for Task 5J only: because the collaboration hard thread limit prevented a new child thread, the ready forward may reuse an Agent previously created with `fork_turns=none` as a forward-only Agent. That reused Agent remains under strict read-only and isolation constraints for this turn. real exporter execution and controller-independent DOCX/source/hash verification are required; the reused Agent's statement alone is insufficient. This is not a general exception for any other task or future forward.
+
 - [ ] **Step 5: Generate `agents/openai.yaml` metadata and validate every skill**
 
-Run the skill-creator generator for each folder using these exact display names: `专利案件受理`, `发明挖掘`, `现有技术检索`, `可专利性分析`, `权利要求策略`, `权利要求撰写`, `说明书撰写`, `专利质量审查`, and `专利文件导出`. Set each `short_description` to the corresponding table responsibility and set `default_prompt` to `请处理当前案件并生成本阶段规定的结构化产物。`.
+Run the skill-creator generator for each folder using these exact display names: `中国专利案件编排`, `专利案件受理`, `发明挖掘`, `现有技术检索`, `可专利性分析`, `权利要求策略`, `权利要求撰写`, `说明书撰写`, `专利质量审查`, and `专利文件导出`. Set each `short_description` to the corresponding responsibility and set `default_prompt` to `请处理当前案件并生成本阶段规定的结构化产物。`.
 
-Then run `quick_validate.py` against each of the nine skill directories.
+Then run `quick_validate.py` against each of the ten skill directories.
 
 Expected: all validators exit 0 and no generated metadata contains placeholder text.
 
@@ -899,7 +968,7 @@ git commit -m "feat: export Chinese patent application DOCX"
 - Create: `tests/fixtures/software_case/case.json`
 - Create: `tests/fixtures/software_case/expected-review.json`
 - Create: `tests/test_end_to_end.py`
-- Modify: `agents/cn-patent-orchestrator.md`
+- Modify: `skills/cn-patent-orchestrator/SKILL.md`
 
 **Interfaces:**
 - Consumes: one anonymized mechanical case and one anonymized software/AI case.
@@ -954,7 +1023,7 @@ Record only anonymized prompts, emitted artifacts, detected failures, and result
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tests/fixtures tests/test_end_to_end.py agents/cn-patent-orchestrator.md skills
+git add tests/fixtures tests/test_end_to_end.py skills/cn-patent-orchestrator skills
 git commit -m "test: add patent golden-case regression"
 ```
 
@@ -979,8 +1048,8 @@ ROOT = Path(__file__).parents[1]
 
 def test_release_contains_required_components():
     assert (ROOT / ".codex-plugin/plugin.json").exists()
-    assert (ROOT / "agents/cn-patent-orchestrator.md").exists()
-    assert len(list((ROOT / "skills").glob("*/SKILL.md"))) == 11
+    assert (ROOT / "skills/cn-patent-orchestrator/SKILL.md").exists()
+    assert len(list((ROOT / "skills").glob("*/SKILL.md"))) == 12
     assert (ROOT / "templates/cn-patent-application.docx").exists()
 ```
 
@@ -990,7 +1059,7 @@ Run: `python -m pytest -v`
 
 Expected: all tests pass.
 
-Run `quick_validate.py` against all eleven skill folders.
+Run `quick_validate.py` against all twelve skill folders.
 
 Expected: all validators exit 0.
 
@@ -1038,7 +1107,7 @@ Expected:
 
 - all tests pass;
 - CLI prints `0.1.0`;
-- all eleven skills pass `quick_validate.py`;
+- all twelve skills pass `quick_validate.py`;
 - both golden-case forward tests detect their seeded high-risk defects;
 - a valid approved case exports a readable DOCX;
 - an invalid, stale, or unapproved case cannot export;

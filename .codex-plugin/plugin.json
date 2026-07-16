@@ -1,0 +1,24 @@
+{
+  "name": "codex-patent",
+  "version": "0.1.0",
+  "description": "Chinese patent production workflow for invention patents and utility models.",
+  "author": {
+    "name": "XianYuyu-2200",
+    "url": "https://github.com/XianYuyu-2200"
+  },
+  "repository": "https://github.com/XianYuyu-2200/patent-agent",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "中国专利撰写 Agent",
+    "shortDescription": "面向中国发明专利和实用新型的专业撰写工作流",
+    "longDescription": "整理客户材料，完成发明挖掘、检索、保护策略、权利要求、说明书、质量审查和文档导出。",
+    "developerName": "XianYuyu-2200",
+    "category": "Productivity",
+    "capabilities": ["Write", "Analysis"],
+    "defaultPrompt": [
+      "整理当前客户材料并建立专利案件。",
+      "分析当前案件的发明点并生成追问清单。",
+      "根据已确认方案起草中国专利申请文件。"
+    ]
+  }
+}

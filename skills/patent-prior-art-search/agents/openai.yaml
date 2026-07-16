@@ -1,0 +1,4 @@
+interface:
+  display_name: "现有技术检索"
+  short_description: "围绕核心特征和组合生成可复核检索式并保存证据锚点与完整日志"
+  default_prompt: "请处理当前案件并生成本阶段规定的结构化产物。"

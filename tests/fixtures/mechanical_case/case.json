@@ -1,0 +1,148 @@
+{
+  "fixture_version": "1.0",
+  "anonymization": "Synthetic identifiers and generalized technical details; no applicant, inventor, customer, or filing data.",
+  "case": {
+    "case_id": "GOLDEN-MECH-001",
+    "title": "可折叠设备支撑组件",
+    "stage": "mining",
+    "technical_domain": "mechanical-hardware",
+    "facts": [
+      {
+        "fact_id": "M-F001",
+        "statement": "底座通过转轴与支撑臂形成可转动连接。",
+        "status": "source-backed",
+        "anchors": [
+          {
+            "source_id": "SRC-M-01",
+            "locator": "段落2",
+            "quote": "支撑臂绕底座上的转轴在展开位置与收纳位置之间转动。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "M-F002",
+        "statement": "弹性定位件在支撑臂到达展开位置时与定位槽配合。",
+        "status": "confirmed",
+        "anchors": [
+          {
+            "source_id": "SRC-M-01",
+            "locator": "段落3",
+            "quote": "展开后，弹性定位件进入定位槽以保持支撑臂位置。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "M-F003",
+        "statement": "替代实施方式以两个间隔布置的弹性片替换单个弹性定位件。",
+        "status": "confirmed",
+        "anchors": [
+          {
+            "source_id": "SRC-M-02",
+            "locator": "段落1",
+            "quote": "也可以采用左右两个弹性片共同定位。"
+          }
+        ],
+        "final_text_allowed": true
+      },
+      {
+        "fact_id": "M-F999",
+        "statement": "定位件包含磁吸锁止结构。",
+        "status": "inferred",
+        "anchors": [],
+        "final_text_allowed": false
+      }
+    ],
+    "artifacts": [],
+    "issues": [],
+    "approvals": []
+  },
+  "component_relationships": [
+    {
+      "relationship_id": "M-R001",
+      "subject": "支撑臂",
+      "relation": "通过转轴可转动连接",
+      "object": "底座",
+      "fact_id": "M-F001",
+      "source_anchor": "SRC-M-01#段落2"
+    },
+    {
+      "relationship_id": "M-R002",
+      "subject": "弹性定位件",
+      "relation": "进入并与定位槽配合",
+      "object": "定位槽",
+      "fact_id": "M-F002",
+      "source_anchor": "SRC-M-01#段落3"
+    }
+  ],
+  "alternative_structures": [
+    {
+      "alternative_id": "M-A001",
+      "replaces_fact_id": "M-F002",
+      "fact_id": "M-F003",
+      "structure": "两个间隔布置的弹性片",
+      "preserved_relationship": "在展开位置与定位槽配合",
+      "source_anchor": "SRC-M-02#段落1"
+    }
+  ],
+  "drawing_reference_table": [
+    {
+      "numeral": "10",
+      "component": "底座"
+    },
+    {
+      "numeral": "20",
+      "component": "支撑臂"
+    },
+    {
+      "numeral": "30",
+      "component": "转轴"
+    },
+    {
+      "numeral": "40",
+      "component": "弹性定位件"
+    },
+    {
+      "numeral": "41",
+      "component": "定位槽"
+    }
+  ],
+  "referenced_numerals": [
+    "10",
+    "20",
+    "30",
+    "40",
+    "41"
+  ],
+  "claims": [
+    {
+      "claim": 1,
+      "references": [],
+      "features": [
+        "M-F001",
+        "M-F002",
+        "M-F999"
+      ]
+    },
+    {
+      "claim": 2,
+      "references": [
+        1
+      ],
+      "features": [
+        "M-F003"
+      ]
+    }
+  ],
+  "supported_fact_ids": [
+    "M-F001",
+    "M-F002",
+    "M-F003"
+  ],
+  "final_fact_ids": [
+    "M-F001",
+    "M-F002",
+    "M-F999"
+  ]
+}

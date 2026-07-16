@@ -1,0 +1,4 @@
+interface:
+  display_name: "专利案件受理"
+  short_description: "整理混合客户材料并检查完整度、事实冲突、公开与身份风险"
+  default_prompt: "请处理当前案件并生成本阶段规定的结构化产物。"

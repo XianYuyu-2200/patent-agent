@@ -1,0 +1,118 @@
+{
+  "case_id": "MECH-FOLDING-BRACKET-001",
+  "sections": {
+    "技术领域": {
+      "text": "本申请涉及支架结构技术领域。",
+      "term_occurrences": [],
+      "required_term_ids": []
+    },
+    "发明内容": {
+      "text": "折叠支架包括底座、支撑臂和转轴，支撑臂通过转轴与底座连接。",
+      "term_occurrences": [
+        {
+          "occurrence_id": "SPEC-INV-T-001-1",
+          "term_id": "T-001",
+          "rendered": "底座"
+        },
+        {
+          "occurrence_id": "SPEC-INV-T-002-1",
+          "term_id": "T-002",
+          "rendered": "支撑臂"
+        },
+        {
+          "occurrence_id": "SPEC-INV-T-003-1",
+          "term_id": "T-003",
+          "rendered": "转轴"
+        }
+      ],
+      "required_term_ids": [
+        "T-001",
+        "T-002",
+        "T-003"
+      ],
+      "supported_features": [
+        "F-001",
+        "F-002",
+        "F-003"
+      ]
+    },
+    "具体实施方式": {
+      "text": "锁止销限制支撑臂相对于底座转动。",
+      "term_occurrences": [
+        {
+          "occurrence_id": "SPEC-EMB-T-001-1",
+          "term_id": "T-001",
+          "rendered": "底座"
+        },
+        {
+          "occurrence_id": "SPEC-EMB-T-002-1",
+          "term_id": "T-002",
+          "rendered": "支撑臂"
+        },
+        {
+          "occurrence_id": "SPEC-EMB-T-004-1",
+          "term_id": "T-004",
+          "rendered": "锁止销"
+        }
+      ],
+      "required_term_ids": [
+        "T-001",
+        "T-002",
+        "T-004"
+      ],
+      "supported_features": [
+        "F-004"
+      ]
+    }
+  },
+  "abstract": {
+    "text": "本申请公开一种折叠支架，其支撑臂通过转轴与底座连接，并由锁止销限制转动。",
+    "term_occurrences": [
+      {
+        "occurrence_id": "ABS-T-001-1",
+        "term_id": "T-001",
+        "rendered": "底座"
+      },
+      {
+        "occurrence_id": "ABS-T-002-1",
+        "term_id": "T-002",
+        "rendered": "支撑臂"
+      },
+      {
+        "occurrence_id": "ABS-T-003-1",
+        "term_id": "T-003",
+        "rendered": "转轴"
+      },
+      {
+        "occurrence_id": "ABS-T-004-1",
+        "term_id": "T-004",
+        "rendered": "锁止销"
+      }
+    ],
+    "required_term_ids": []
+  },
+  "reference_table": [
+    {
+      "numeral": "10",
+      "component": "底座"
+    },
+    {
+      "numeral": "20",
+      "component": "支撑臂"
+    },
+    {
+      "numeral": "30",
+      "component": "转轴"
+    },
+    {
+      "numeral": "40",
+      "component": "锁止销"
+    }
+  ],
+  "referenced_numerals": [
+    "10",
+    "20",
+    "30",
+    "40"
+  ]
+}

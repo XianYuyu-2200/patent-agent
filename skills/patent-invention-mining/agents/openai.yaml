@@ -1,0 +1,4 @@
+interface:
+  display_name: "发明挖掘"
+  short_description: "从受理材料中提取可追溯技术事实、特征树和发明人访谈问题"
+  default_prompt: "请处理当前案件并生成本阶段规定的结构化产物。"
